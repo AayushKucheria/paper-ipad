@@ -5,3 +5,10 @@ DerivedData/
 xcuserdata/
 .DS_Store
 .env
+*.xcresult
+.env*
+reader-token*
+*.credential
+*.credentials
+*backup*/
+*.pdf.bak
