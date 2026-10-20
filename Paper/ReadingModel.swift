@@ -11,14 +11,11 @@ import OSLog
     @Published var error: String?
     let store: DocumentStore
     private let log = Logger(subsystem: "com.aayush.paper.reader", category: "Import")
-    init() {
+    init(store: DocumentStore? = nil) {
         let root = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("Library", isDirectory: true)
-        store = DocumentStore(root: root)
+        self.store = store ?? DocumentStore(root: root)
         do {
-            documents = try store.documents()
-            if let id = UserDefaults.standard.string(forKey: "lastDocument") {
-                if let doc = documents.first(where: { $0.id.uuidString == id }) { select(doc) }
-            }
+            documents = try self.store.documents()
         } catch { self.error = error.localizedDescription }
     }
     func select(_ document: StoredDocument) {

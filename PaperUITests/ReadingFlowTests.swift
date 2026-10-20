@@ -18,6 +18,7 @@ final class ReadingFlowTests: XCTestCase {
     }
     func testNativeMarkupIsVisibleAndSurvivesRelaunch() {
         let app = XCUIApplication()
+        app.launchEnvironment = ["PAPER_UI_TEST": "1", "PAPER_TEST_RESET": "1"]
         app.launch()
         if app.buttons["sample"].waitForExistence(timeout: 4) { app.buttons["sample"].tap() }
         let markup = app.descendants(matching: .any).matching(identifier: "QLOverlayMarkupButtonAccessibilityIdentifier").firstMatch
@@ -35,7 +36,12 @@ final class ReadingFlowTests: XCTestCase {
         close.tap()
         XCTAssertTrue(app.navigationBars["Paper"].waitForExistence(timeout: 10))
         app.terminate()
+        app.launchEnvironment.removeValue(forKey: "PAPER_TEST_RESET")
         app.launch()
+        app.buttons["downloaded-tab"].tap()
+        let saved = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "open-")).firstMatch
+        XCTAssertTrue(saved.waitForExistence(timeout: 8))
+        saved.tap()
         XCTAssertTrue(markup.waitForExistence(timeout: 25), app.debugDescription)
         XCTAssertGreaterThan(darkPixelsInWritingArea(app.screenshot()), before + 50, "Saved Markup must render after relaunch.")
     }
