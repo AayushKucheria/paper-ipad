@@ -99,3 +99,23 @@ struct DocumentStore {
         root.appendingPathComponent(document.id.uuidString).appendingPathComponent("source.pdf")
     }
 }
+
+
+extension DocumentStore {
+    private var removedRoot: URL { root.deletingLastPathComponent().appendingPathComponent("RecentlyRemoved", isDirectory: true) }
+    func removedDocuments() throws -> [StoredDocument] { try DocumentStore(root: removedRoot).documents() }
+    func removeDownload(_ document: StoredDocument) throws {
+        try FileManager.default.createDirectory(at: removedRoot, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: pdfURL(for: document).deletingLastPathComponent(),
+            to: removedRoot.appendingPathComponent(document.id.uuidString))
+    }
+    func restoreDownload(_ document: StoredDocument) throws {
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try FileManager.default.moveItem(at: removedRoot.appendingPathComponent(document.id.uuidString),
+            to: pdfURL(for: document).deletingLastPathComponent())
+    }
+    func permanentlyDelete(_ document: StoredDocument) throws {
+        try FileManager.default.removeItem(at: removedRoot.appendingPathComponent(document.id.uuidString))
+    }
+    func reviewURL(for document: StoredDocument) -> URL { pdfURL(for: document).deletingLastPathComponent().appendingPathComponent("review.json") }
+}

@@ -6,7 +6,8 @@ import json, time, threading
 
 PORT = 18767
 BASE = f'http://localhost:{PORT}'
-metrics = {'catalog_requests': 0, 'pdf_requests': 0, 'pdf_authorization_headers': 0}
+metrics = {'catalog_requests': 0, 'pdf_requests': 0, 'pdf_authorization_headers': 0, 'analysis_requests': 0, 'highlight_posts': 0, 'incremental_requests': 0}
+highlights = []
 lock = threading.Lock()
 
 def pdf_bytes():
@@ -38,6 +39,7 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path); query = parse_qs(parsed.query)
         if parsed.path == '/metrics': return self.reply(200, metrics)
         if parsed.path == '/reset':
+            highlights.clear()
             with lock:
                 for key in metrics: metrics[key] = 0
             return self.reply(200, metrics)
@@ -50,11 +52,34 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == '/api/v3/list/':
             if self.headers.get('Authorization') != 'Token ui-test-token': return self.reply(401, {})
             with lock: metrics['catalog_requests'] += 1
+            if query.get('category') == ['highlight']:
+                return self.reply(200, {'results':highlights, 'nextPageCursor':None})
+            if query.get('updatedAfter'):
+                with lock: metrics['incremental_requests'] += 1
+                return self.reply(200, {'results':[], 'nextPageCursor':None})
             if query.get('id'):
                 return self.reply(200, {'results':[document('guide', 'A field guide to slow reading', 'Paper test library', 'Margins, notes, and meaning.')], 'nextPageCursor':None})
             if query.get('pageCursor'):
                 return self.reply(200, {'results':[document('second', 'Thinking on paper', None, None)], 'nextPageCursor':None})
             return self.reply(200, {'results':[document('guide', 'A field guide to slow reading', 'Paper test library', 'Margins, notes, and meaning.'), document('unavailable', 'An unavailable original', available=False)], 'nextPageCursor':'page-two'})
+        return self.reply(404, {})
+
+    def do_POST(self):
+        length = int(self.headers.get('Content-Length', '0'))
+        payload = json.loads(self.rfile.read(length))
+        if self.path == '/api/anthropic/messages' or self.path == '/anthropic/messages':
+            if self.headers.get('x-api-key') != 'fake-anthropic-key': return self.reply(401, {})
+            with lock: metrics['analysis_requests'] += 1
+            item = {'pages':[1], 'quote':'A field guide to slow reading', 'note':'Read this again', 'interpretation':'', 'kind':'handwriting'}
+            return self.reply(200, {'stop_reason':'end_turn', 'content':[{'type':'text', 'text':json.dumps({'items':[item]})}]})
+        if self.path == '/api/v3/save/':
+            if self.headers.get('Authorization') != 'Token ui-test-token': return self.reply(401, {})
+            if payload.get('parent_id') != 'guide' or payload.get('content') != 'A field guide to slow reading': return self.reply(400, {})
+            with lock:
+                metrics['highlight_posts'] += 1
+                identifier = 'highlight-' + str(metrics['highlight_posts'])
+                highlights.append({'id':identifier,'parent_id':payload['parent_id'],'notes':payload.get('notes','')})
+            return self.reply(201, {'id':identifier})
         return self.reply(404, {})
 
 if __name__ == '__main__':

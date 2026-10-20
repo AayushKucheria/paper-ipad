@@ -4,6 +4,7 @@ import OSLog
 @MainActor final class ReaderLibraryModel: ObservableObject {
     @Published var pdfs: [ReaderPDF] = []
     @Published var downloads: [StoredDocument] = []
+    @Published var removed: [StoredDocument] = []
     @Published var error: String?
     @Published var connectionError: String?
     @Published var isRefreshing = false
@@ -36,7 +37,7 @@ import OSLog
                 pdfs = Self.sorted(snapshot.documents); lastSynced = snapshot.syncedAt
             }
         } catch { self.error = "Saved Reader metadata couldn’t be loaded. Refresh to rebuild the catalog; your PDFs are kept separately." }
-        do { downloads = try store.documents() }
+        do { downloads = try store.documents(); removed = try store.removedDocuments() }
         catch { self.error = "Your downloaded library couldn’t be loaded. Your PDF files remain on this iPad. \(error.localizedDescription)" }
         if api == nil {
             do { if let token = try credentials.read() { self.api = makeAPI(token) } }
@@ -47,7 +48,7 @@ import OSLog
     func start() async {
         guard !started else { return }
         started = true
-        if connected { await refresh() }
+        if connected && (lastSynced == nil || Date().timeIntervalSince(lastSynced!) > 900) { await refresh() }
     }
     func connect(token: String) async -> Bool {
         let clean = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -60,11 +61,11 @@ import OSLog
         if success { api = candidate; connected = true }
         return success
     }
-    func refresh() async {
+    func refresh(full: Bool = false) async {
         guard let api else { return }
-        _ = await sync(using: api)
+        _ = await sync(using: api, full: full)
     }
-    private func sync(using service: any ReaderServing, token: String? = nil) async -> Bool {
+    private func sync(using service: any ReaderServing, token: String? = nil, full: Bool = false) async -> Bool {
         guard !isRefreshing else { return false }
         isRefreshing = true; refreshStarted = Date(); receivedCount = 0
         error = nil
@@ -72,15 +73,19 @@ import OSLog
         defer { isRefreshing = false }
         logger.info("refresh_start operation=\(operation, privacy: .public)")
         do {
-            let records = try await service.listPDFs { [weak self] count in
+            let checkpoint = token == nil && !full ? lastSynced?.addingTimeInterval(-60) : nil
+            let updates = try await service.listPDFs(updatedAfter: checkpoint) { [weak self] count in
                 Task { @MainActor in if self?.isRefreshing == true { self?.receivedCount = count } }
             }
             try Task.checkCancellation()
             if let token { try credentials.save(token) }
-            let date = Date()
+            var merged = checkpoint == nil ? [:] : Dictionary(pdfs.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+            for record in updates { merged[record.id] = record }
+            let records = Array(merged.values)
+            let date = refreshStarted
             try catalog.save(records, syncedAt: date)
             pdfs = Self.sorted(records); lastSynced = date
-            downloads = try store.documents()
+            downloads = try store.documents(); removed = try store.removedDocuments()
             logger.info("refresh_commit operation=\(operation, privacy: .public) count=\(records.count) elapsed=\(Date().timeIntervalSince(self.refreshStarted))")
             return true
         } catch {
@@ -91,14 +96,19 @@ import OSLog
         }
     }
     func reloadDownloads() {
-        do { downloads = try store.documents() }
+        do { downloads = try store.documents(); removed = try store.removedDocuments() }
         catch { self.error = error.localizedDescription }
     }
     func localDocument(for pdf: ReaderPDF) -> StoredDocument? { downloads.first { $0.readerID == pdf.id } }
+    func removedDocument(for pdf: ReaderPDF) -> StoredDocument? { removed.first { $0.readerID == pdf.id } }
     func download(_ pdf: ReaderPDF) async -> StoredDocument? {
         // Always prefer the retained working copy, including when the API is unavailable.
         reloadDownloads()
         if let existing = localDocument(for: pdf) { return existing }
+        if let retained = removedDocument(for: pdf) {
+            do { try store.restoreDownload(retained);reloadDownloads();return retained }
+            catch { self.error = "The retained PDF couldn’t be restored. Check Recently Removed.";return nil }
+        }
         guard activeDownloadID == nil else { return nil }
         guard let api else { error = "Connect Reader to download a PDF."; return nil }
         activeDownloadID = pdf.id; downloadStarted = Date(); receivedBytes = 0; expectedBytes = nil
@@ -119,7 +129,7 @@ import OSLog
             let document = try await Task.detached(priority: .userInitiated) {
                 try store.importReaderPDF(at: file, metadata: pdf)
             }.value
-            downloads = try store.documents()
+            downloads = try store.documents(); removed = try store.removedDocuments()
             logger.info("pdf_persisted operation=\(operation, privacy: .public) elapsed=\(Date().timeIntervalSince(self.downloadStarted))")
             return document
         } catch {

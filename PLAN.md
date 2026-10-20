@@ -1,47 +1,43 @@
-# Reader library implementation plan
+# Paper delivery plan — 21 October 2026
 
-## Preparation
+The approved library and markup review workflow are implemented and installed. Scope and storage rules are in SPEC.md; earlier measurements remain in docs/.
 
-- [x] Inspect existing app, persistence, tests, signing configuration and prior implementation notes.
-- [x] Verify official Reader listing and original-file APIs.
-- [x] Recover the previously supplied token without logging it; verify authentication and all catalog pages.
-- [x] Download one original PDF without sending the Reader token to its signed source URL.
-- [x] Create interactive Library and Downloaded previews from real metadata.
-- [x] Research later Reader/Readwise annotation export; record supported APIs and remaining experiments.
-- [x] User approved the previews and verified scope on 20 October 2026.
+## Completed
 
-## Tests before implementation
+- [x] Reader listing, pagination, nullable metadata, search, source resolution, secure PDF download, Keychain connection and offline reopening.
+- [x] Immutable originals and atomic edited-copy saves, verified through unit tests and native Markup save/relaunch UI tests.
+- [x] White appearance, local first-page/remote covers, matching search counts, per-document export/review/removal actions and search focus handling.
+- [x] Reproduce redundant cached-launch scan with a failing test; implement cached startup, incremental merge with overlapped checkpoint and explicit full reconciliation.
+- [x] Recoverable removal/restore and explicit permanent deletion. Test that edited bytes and original bytes survive restoration; restore reuses the local copy.
+- [x] Approve and implement full-PDF review beside passage, handwritten transcription and labeled AI interpretation; portrait stacks views.
+- [x] Selected-page rendering and Anthropic structured analysis, cancellation, elapsed progress, safe errors, validated page references and local draft persistence.
+- [x] Persist confirmed delivery payload before POST; retain returned Reader IDs; reconcile ambiguous sends; preserve sent items during reanalysis. Red/green regression tests cover both duplicate risks.
+- [x] Measure live full-refresh decode failure at image_url, record index 39. Reproduce in a failing API test; tolerate malformed optional covers; verify live refresh succeeds.
+- [x] Renew signing, back up Documents, install over the app and compare hashes. Latest backup: `~/Documents/Paper Backups/2026-10-21-013041`.
+- [x] Provision Anthropic through a private one-time file; verify it was consumed into Keychain. Keep .env and private samples outside Git.
 
-For each group, run the new test and observe the missing behavior, implement the minimum change, then rerun it.
+## Verification
 
-1. [x] API tests: decode nullable title/author/summary; include only top-level PDF documents; follow all cursors; query all locations; reject cursor loops; preserve safe error messages for 401/403/429/network failures.
-2. [x] Download tests: obtain a fresh signed source URL by Reader ID; use a separate request without authorization; reject insecure/unavailable sources and invalid PDFs, with an Open in Reader action for unavailable originals; refresh an expired link once; honor throttling with bounded retries. Assert requests and observable persisted results using URLProtocol, with no live token in fixtures.
-3. [x] Catalog tests: successful refresh atomically replaces metadata; a failure on a later page leaves the previous complete catalog intact; reopening without networking restores the catalog.
-4. [x] Local storage tests: existing Files imports decode unchanged; Reader downloads preserve original bytes and identity; second download/reopening reuses the saved PDF; invalid or interrupted download leaves no entry.
-5. [x] Preservation tests: annotate a downloaded working PDF, change Reader title/location, refresh, and verify exact working bytes and local ID stay unchanged. Remove it from remote metadata and verify it remains in Downloaded after reopening.
-6. [x] Connection tests: Keychain save/read/replacement and one-time private provisioning; no token persisted in catalog or document records.
-7. [x] Model tests: initial connection refreshes metadata only; search includes title/author/summary; downloaded items open offline; download failure is retryable; operation state and live elapsed timers are exposed while networking runs.
-8. [ ] Runtime UI test: connect to a controlled local HTTP service, refresh a paginated catalog, search, download a real PDF, open native Quick Look, return, relaunch offline and open the retained PDF. Confirm rendered states and error recovery with screenshots.
-9. [ ] Preserve the existing native Markup visible-ink/save/relaunch regression test.
+| Check | Result |
+| --- | --- |
+| Signed simulator unit tests | 34 passed |
+| Library connect/paginate/search/download/offline reopen | Passed; four screenshots inspected |
+| Simulator analysis/edit/send/relaunch/remove/restore | Passed; one analysis, one Reader POST; restoration adds no PDF transfer |
+| Native visible ink/save/relaunch | Passed, 49.518 s |
+| Physical iPad with real Keychain/Anthropic | Passed, 28.281 s; four pages produced six saved drafts; no live Reader send |
+| Physical full Reader refresh | Passed, 31.614 s; 717 records, 690 with remote cover metadata |
+| Data after final refresh | All 16 Library files, including review.json, retained their hashes |
+| Screenshots | Library, download, Quick Look, landscape review and physical refreshed library opened and inspected |
 
-## Progress and logging checks
+Results are under `/tmp/paper-review-green-20261021.xcresult`, `/tmp/paper-live-review-20261021.xcresult` and `/tmp/paper-live-covers-green-20261021.xcresult`. Durable data snapshots are under Documents/Paper Backups.
 
-- [ ] Catalog logs: start, each page with count/elapsed, complete commit or failure. UI: spinner, elapsed seconds and count while refreshing; old list remains available.
-- [ ] Download logs: source resolution, transfer, validation, persistence or failure. UI: transfer progress where available, spinner/elapsed otherwise, plain status and retry.
-- [ ] Authentication failures lead to connection UI while local files remain accessible. Throttled requests show a wait state and bounded retry.
-- [ ] Ensure logs, screenshots used for tests, fixtures and Git contain no token or signed URL.
+## Follow-up
 
-## Delivery
+- [ ] Verify one user-confirmed highlight in the real Reader account, then inspect original PDF placement and downstream Readwise retrieval. Controlled-service delivery is already covered.
+- [ ] Associate older Files imports with existing Reader documents for sending.
+- [ ] Diagnose palm strokes on the physical iPad; simulator tests cannot establish Pencil/palm behavior.
+- [ ] Renew before **28 October 00:03 Helsinki**, or move to longer-lived signing/distribution through paid membership.
+- [ ] Broaden coverage for interrupted removal, account replacement, cover cache/scroll performance, VoiceOver, Dynamic Type and hardware keyboard.
+- [ ] Consider automatic connection-sheet presentation on authentication failure; current errors direct the user to replace the token manually.
 
-- [ ] Inspect final simulator screenshots for Library, Downloaded, connection, download progress and Quick Look.
-- [ ] Run required unit and UI checks; report exact results and remaining device-only limitations.
-- [x] Reconnect iPad and back up its existing Library; preserve the installed app's data during the pending update.
-- [x] Build/sign and update the existing bundle ID without uninstalling.
-- [x] Provision the token into Keychain, launch and confirm all 717 current Reader PDF entries synchronize (device catalog: 717 records, 700 downloadable, 17 not).
-- [x] Verify at least one download/open path on the device: `ReaderLiveSmokeTests` passed on the iPad (28.0 s). It confirmed 717 PDFs and "Reader connected", then downloaded "Knots" (364,517 bytes, same size as the earlier direct download) and opened it in Quick Look (98 pages, Markup button present). It reopened it from Downloaded. Screenshots inspected.
-- [x] Verify catalog refresh and relaunch preserve the existing on-device PDFs/markup (Documents/Library identical to backup via diff -r after sync and relaunch).
-- [x] Update README/HANDOFF with measured evidence, usage, research findings and unresolved palm issue.  (README is for people; agent commands live in AGENTS.md.)
-
-## Current gate
-
-Layout approved. Implementation is complete; 22 unit tests pass (signed simulator run) and the live smoke test passed on the physical iPad. Remaining: palm marks (unresolved) and the 27 Oct 2026 profile renewal.
+No native image/ink upload is promised. Recognition accuracy has no ground-truth benchmark; users review all derived text and interpretations.

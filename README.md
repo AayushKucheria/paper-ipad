@@ -1,32 +1,46 @@
 # Paper
 
-An iPad app for reading PDFs and marking them up with Apple Pencil. It uses Apple's own PDF preview (Quick Look) and its built-in Markup tools, and connects to your Readwise Reader library of PDFs.
+An iPad PDF library with native Apple Pencil Markup and a connection to Readwise Reader.
 
-## What it does
+## Reading and the library
 
-- **Library**: browse every PDF in your Reader account with title, author and description. Search across all three.
-- **Downloaded**: PDFs you have saved to the iPad. They open offline.
-- **Markup**: tap Markup in the preview and draw with your Pencil. Your marks are saved on the iPad.
-- **Safe refreshes**: refreshing the Library updates titles and details only. It never deletes downloads or overwrites your markup.
-- **Files import**: you can also add a PDF from the Files app.
+- **Library:** browse/search Reader PDFs with covers, titles, authors and descriptions.
+- **Downloaded:** open offline, review markup, export the annotated PDF, or remove a download through its ••• menu.
+- **Recently Removed:** restore a PDF with all its markup and drafts. Permanent deletion frees storage and clearly asks for confirmation.
+- **Refresh:** cached metadata appears immediately. “Check for updates” fetches changed records; “Refresh entire catalog” also reconciles remote removals. Local work remains independent.
 
-Your original PDF is always kept untouched; marks are saved in a separate working copy. Use the preview's Share button to export a copy.
+The original PDF stays untouched. Draw in Apple's native Quick Look/Markup; edits are saved in a separate working copy.
 
-## Connecting Reader
+## Reviewing markup
 
-On first launch, open the Connect screen and paste your Readwise access token (from readwise.io/access_token). It is stored in the iPad's Keychain. You can replace it later without losing downloads.
+1. Finish Markup and return to Downloaded. Open the PDF's ••• menu → **Review markup**.
+2. Use landscape for the full PDF on the left and the draft on the right. Portrait stacks the views.
+3. Choose up to six pages and tap **Analyze with Claude**. Only those page images and their source text are sent to Anthropic using your API account.
+4. Check the quoted passage, handwritten transcription and labeled AI interpretation. You can edit them or add a draft manually.
+5. **Confirm and send to Reader** creates a text highlight with your note on the original Reader document. Drafts and the original visual markup stay on the iPad.
 
-## Current limitations
+Analysis can misread writing or infer the wrong connection. A diagram's interpretation is a suggestion. Reader needs a matching source passage; standalone drawings and imported PDFs without a Reader link remain local. A multi-page passage may need correction to match Reader's parsed text.
 
-- Palm marks sometimes appear even with Pencil-only drawing enabled. The cause is not yet known.
-- 17 of 717 Reader PDFs have no download link. They show as unavailable, with an option to open them in Reader.
-- Marks are not yet sent back to Reader or Readwise.
-- The app is signed with a free Personal Team profile that expires on 27 October 2026. After that date the app must be rebuilt and reinstalled from Xcode (over the existing install, not after deleting it, so your library is kept).
+If delivery cannot be confirmed, use **Check delivery** before retrying. Sent items remain recorded after relaunch. A manual retry is available after checking Reader for duplicates.
 
-## Building
+## Connections and keys
 
-Open `Paper.xcodeproj` in Xcode, choose your signing team, and run on an iPad (iPadOS 18 or later) with Developer Mode on.
+The Reader token and Anthropic key are stored separately in the iPad's Keychain. Reader connection and AI settings let you replace them. Downloaded PDFs survive connection failures.
 
-## For developers and agents
+The ignored `.env` on the Mac is a development configuration file; it is never bundled in the app. The existing Reader token is already in the iPad's Keychain, so it need not be copied into `.env`. Anthropic usage is billed to your API account.
 
-See [AGENTS.md](AGENTS.md) for commands, test setup and the documentation map.
+## Signing and updates
+
+The current free Personal Team profile expires **28 October 2026 at 00:03 Helsinki time**. Apple limits free development profiles to seven days. The paid Apple Developer Program is an alternative for longer-lived distribution; it requires separate enrollment.
+
+Update over the existing app. Keep the iPad unlocked and finish any Markup edits first. The update script backs up Documents, checks signing identity, installs in place, and verifies saved file hashes.
+
+## Known limitations
+
+- Palm strokes still sometimes appear despite Pencil-only settings; the cause is unresolved.
+- Some Reader PDFs have no downloadable original and offer Open in Reader.
+- Text delivery is implemented; native ink/image highlights and exact placement in Reader's original PDF view are not established by its public API.
+
+## Development
+
+Open `Paper.xcodeproj` in Xcode with iPadOS 18+ and Developer Mode enabled. Operational commands, tests, provisioning and storage rules are in [AGENTS.md](AGENTS.md).

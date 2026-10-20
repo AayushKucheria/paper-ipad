@@ -118,3 +118,31 @@ Acceptance for later synchronization: reopening or catalogue refresh preserves a
 ## Sources
 
 Official Readwise and Apple documentation is linked beside each finding. Device measurements used the temporary `/tmp/paper-annotation-probe.swift` script and the read-only backup described above; no private document values were persisted here. No credentials, private APIs, or network writes were used. API capabilities were checked on the research date; the controlled tool and remote synchronization experiments remain future verification work.
+
+
+## Follow-up: local OCR on the five saved stamps
+
+On 20 October 2026, `scripts/inspect-markup.swift` rendered five context crops from the two preserved PDFs and ran macOS Vision `VNRecognizeTextRequest` at accurate recognition level. All five crops were visually inspected. The source files were read only; private images and transcriptions remain outside the repository in `~/Documents/Paper Backups/2026-10-20-ocr-experiment`.
+
+Context recognition returned 5, 3, 2, 9, and 11 text lines respectively. Many were printed source text. Visible handwriting was omitted, and incorrect strings sometimes received confidence 1.0. These counts measure returned candidates, not accuracy; no ground-truth transcription was available.
+
+A second pass drew each Stamp alone on white, using PDFAnnotation's appearance drawing, then ran the same OCR. It returned 1, 2, 0, 1, and 0 lines. Visual inspection of the second crop confirmed that printed background text was removed while the handwriting and circle remained. One previously missed handwritten word on the sample page was recovered; another short handwritten note became incorrect character strings. Ink isolation is feasible for this sample, but does not establish reliable handwriting recognition. Outputs: `~/Documents/Paper Backups/2026-10-20-ink-only-experiment`.
+
+**Recommendation:** retain both context and isolated ink. Use the original PDF text layer for candidate quotations and the ink image for note transcription. Show both to the user for correction. Detecting what a circle encloses or an arrow points at still needs geometric/visual interpretation; a single Stamp may contain several unrelated marks. A later vision-language experiment could help with association, but was not run here. No image was publicly hosted and no remote highlight was created.
+
+The next useful proof is a controlled page with one circle and one legible margin note, followed by a reviewed Reader passage match and delivery round trip. Measure original-PDF placement and downstream Readwise retrieval independently.
+
+
+## User direction — 21 October 2026
+
+The user prefers full-PDF context beside the review, including scrolling between pages and passages spanning pages. First target: landscape iPad. Retain separate quoted passage and note fields, and label diagram interpretation explicitly.
+
+The baseline above used Apple's Vision OCR. A vision-language model remains the next experiment. [Anthropic's vision documentation](https://platform.claude.com/docs/en/build-with-claude/vision) supports jointly analyzing multiple labeled images, suitable for adjacent pages and isolated ink. This documents a feasible input route; it does not establish transcription quality on these samples. Compare models with human-reviewed reference transcriptions and check diagram labels, inferred relationships, and source passage matching separately. Do not present an interpretation as verbatim handwriting.
+
+## Implemented and measured — 21 October
+
+The shipping app uses direct Anthropic Sonnet 5.5 vision with structured JSON (`output_config.format`), selected full-page images, and original PDF text. The account's Models endpoint authenticated and listed this model. A live forced-tool request returned HTTP 400 because the model does not support forced tool_choice; structured JSON succeeded. The app validates completion status, page bounds and item size before persisting.
+
+The actual API client produced five draft items from the earlier crop sample. A physical iPad run analyzed four saved pages and persisted six items. The screenshot was opened and inspected: full PDF/ink on the left, editable quote/transcription/interpretation on the right. This verifies the complete Keychain/render/request/decode/persist path; it is not a ground-truth accuracy benchmark. The response labels uncertain interpretation, and all fields remain reviewable.
+
+The app implements confirmed Reader text delivery and ambiguous-send reconciliation, covered by a controlled HTTP service and persistence tests. No highlight was created in the real Reader account during verification. Native PDF placement, real matching of passages across pages and downstream Readwise retrieval remain to be verified.

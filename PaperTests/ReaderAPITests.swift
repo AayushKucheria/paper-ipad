@@ -21,6 +21,15 @@ final class ReaderAPITests: XCTestCase {
         config.protocolClasses = [ReaderURLProtocol.self]
         return ReaderAPI(token: "test-secret", session: URLSession(configuration: config), minimumRequestInterval: 0)
     }
+    func testMalformedOptionalCoverDoesNotAbortValidPDFCatalog() async throws {
+        ReaderURLProtocol.handle = { _ in
+            (200, [:], Data(#"{"results":[{"id":"bad-cover","category":"pdf","title":"Keep this document","image_url":"http://["},{"id":"valid-cover","category":"pdf","image_url":"https://images.example/cover.jpg"}],"nextPageCursor":null}"#.utf8))
+        }
+        let records = try await api().listPDFs { _ in }
+        XCTAssertEqual(records.map(\.id), ["bad-cover","valid-cover"])
+        XCTAssertNil(records.first?.imageURL, "Malformed optional cover should fall back without dropping metadata")
+        XCTAssertEqual(records.last?.imageURL?.host, "images.example")
+    }
     func testPaginationFiltersChildrenAndDeduplicatesAndDecodesNullMetadata() async throws {
         var calls = 0
         ReaderURLProtocol.handle = { request in

@@ -18,7 +18,7 @@ Agent-facing notes for Paper. The README is for people; everything operational l
 - Project definition: `project.yml` (run `xcodegen generate` after changing targets). Targets iPadOS 18+.
 - Bundle ID `com.aayush.paper.reader`; Personal Team `<your-team-id>`.
 - Device: iPad Air (5th gen), UDID `<your-device-udid>`, Developer Mode on.
-- Personal Team profile expires 27 Oct 2026. Rebuild and reinstall with the same bundle ID; never uninstall (it would delete the local library).
+- Personal Team profile expires 27 Oct 2026 at 22:03:04 UTC (28 Oct 00:03:04 Helsinki). Rebuild and reinstall with the same bundle ID; never uninstall (it would delete the local library).
 - Never print, commit or pass a Reader token in command arguments.
 
 ## Unit tests (simulator)
@@ -31,9 +31,13 @@ xcodebuild test -project Paper.xcodeproj -scheme Paper \
   -derivedDataPath build
 ```
 
-Last run: 22 unit tests, 0 failures.
+Last run: 34 unit tests, 0 failures (21 Oct 2026). Simulator review/send/restore and native Markup persistence flows passed; physical Anthropic analysis and 717-PDF full refresh passed.
 
 ## Build and install on the iPad
+
+Preferred: `python3 scripts/update-ipad.py`. It backs up Documents to `~/Documents/Paper Backups`, builds, checks bundle/signing identity, installs in place, compares Library SHA-256 hashes, then launches. Keep the iPad unlocked and finish Markup edits first. The 21 Oct update preserved all 16 Documents files. Use `--renew-signing` to request fresh automatic provisioning and require a later expiry before installation. Verify embedded expiry; a normal rebuild may reuse a profile.
+
+Manual commands (back up first):
 
 ```sh
 xcodebuild build -project Paper.xcodeproj -scheme Paper \
@@ -44,6 +48,12 @@ xcrun devicectl device install app --device <your-device-udid> \
 xcrun devicectl device process launch --device <your-device-udid> \
   com.aayush.paper.reader
 ```
+
+## Provisioning the Anthropic key
+
+Preferred: AI settings in the app. Development: `python3 scripts/provision-anthropic.py` reads `ANTHROPIC_API_KEY` from ignored `.env`, copies a private one-time file to `tmp/anthropic-key.txt`, then deletes the local copy. Relaunch with `xcrun devicectl device process launch --terminate-existing --device <your-device-udid> com.aayush.paper.reader`. The app moves the key into the separate `com.aayush.paper.reader.anthropic` Keychain service and deletes the import file. Never display keys, pass them in arguments, or bundle `.env`.
+
+Opt-in physical analysis test: `TEST_RUNNER_PAPER_LIVE_REVIEW_ID=<localUUID> xcodebuild test -project Paper.xcodeproj -scheme Paper -destination 'id=<your-device-udid>' -derivedDataPath build-device -allowProvisioningUpdates -only-testing:PaperUITests/ReviewLiveSmokeTests`. This sends selected saved pages to Anthropic, persists drafts, and creates no Reader highlight.
 
 ## Provisioning the Reader token
 
@@ -69,7 +79,7 @@ xcodebuild test -project Paper.xcodeproj -scheme Paper -destination 'id=<your-de
 
 ## Storage layout
 
-`Documents/Library/{UUID}/` holds `source.pdf` (untouched original), `reading.pdf` (with saved Markup) and `document.json`. `Documents/reader-catalog.json` holds the Reader catalog. Original files are immutable; edited-copy saves validate and write atomically.
+`Documents/Library/{UUID}/` holds `source.pdf` (untouched original), `reading.pdf` (with saved Markup) and `document.json`. `Documents/reader-catalog.json` holds the Reader catalog. Original files are immutable; edited-copy saves validate and write atomically. `review.json` in each document folder stores drafts and delivery state. Removal moves the entire folder to `Documents/RecentlyRemoved/{UUID}`; restore moves it back. Permanent deletion is explicit. Cover images use a bounded memory cache, separate from document data.
 
 ## References
 

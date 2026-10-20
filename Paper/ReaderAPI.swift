@@ -9,6 +9,7 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
     var readerURL: URL?
     var sourceURL: URL?
     var savedAt: String?
+    var imageURL: URL? = nil
     var hasDownload: Bool
     var canDownload: Bool { hasDownload || githubRawURL != nil }
 
@@ -33,6 +34,7 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case id, title, author, summary, hasDownload
+        case imageURL = "image_url"
         case readerURL = "url", sourceURL = "source_url", savedAt = "saved_at", rawSource = "raw_source_url"
     }
     init(from decoder: Decoder) throws {
@@ -44,6 +46,7 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
         readerURL = try c.decodeIfPresent(URL.self, forKey: .readerURL)
         sourceURL = try c.decodeIfPresent(URL.self, forKey: .sourceURL)
         savedAt = try c.decodeIfPresent(String.self, forKey: .savedAt)
+        imageURL = try? c.decodeIfPresent(URL.self, forKey: .imageURL)
         if c.contains(.rawSource) {
             hasDownload = !(try c.decodeIfPresent(String.self, forKey: .rawSource) ?? "").isEmpty
         } else { hasDownload = try c.decodeIfPresent(Bool.self, forKey: .hasDownload) ?? true }
@@ -55,11 +58,18 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
         try c.encodeIfPresent(summary, forKey: .summary); try c.encodeIfPresent(readerURL, forKey: .readerURL)
         try c.encodeIfPresent(sourceURL, forKey: .sourceURL); try c.encodeIfPresent(savedAt, forKey: .savedAt)
         try c.encode(hasDownload, forKey: .hasDownload)
+        try c.encodeIfPresent(imageURL, forKey: .imageURL)
     }
 }
 protocol ReaderServing: Sendable {
     func listPDFs(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF]
+    func listPDFs(updatedAfter: Date?, progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF]
     func downloadPDF(id: String, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL
+}
+extension ReaderServing {
+    func listPDFs(updatedAfter: Date?, progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
+        try await listPDFs(progress: progress)
+    }
 }
 enum ReaderAPIError: LocalizedError {
     case authenticationRequired, throttled, unavailableSource, insecureSource, malformedResponse, paginationLoop, serverFailure, networkFailure
@@ -134,12 +144,16 @@ actor ReaderAPI: ReaderServing {
         #endif
     }
     func listPDFs(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
+        try await listPDFs(updatedAfter: nil, progress: progress)
+    }
+    func listPDFs(updatedAfter: Date?, progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
         let operation = UUID().uuidString, start = Date()
         logger.info("catalog_start operation=\(operation, privacy: .public)")
         var cursor: String?, cursors = Set<String>(), ids = Set<String>(), result: [ReaderPDF] = []
         do {
             repeat {
                 var query = [URLQueryItem(name: "category", value: "pdf"), URLQueryItem(name: "limit", value: "100"), URLQueryItem(name: "withRawSourceUrl", value: "true")]
+                if let updatedAfter { query.append(URLQueryItem(name: "updatedAfter", value: ISO8601DateFormatter().string(from: updatedAfter))) }
                 if let cursor { query.append(URLQueryItem(name: "pageCursor", value: cursor)) }
                 let page = try await fetchPage(query: query)
                 for record in page.results where record.category == "pdf" && record.parentID == nil {

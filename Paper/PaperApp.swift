@@ -10,6 +10,7 @@ private struct LibrarySetup {
     let catalog: ReaderCatalog
     let credentials: ReaderCredentials
     let baseURL: URL
+    let aiCredentials: ReaderCredentials
     init() {
         let files = FileManager.default
         var root = files.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -23,6 +24,7 @@ private struct LibrarySetup {
             if environment["PAPER_TEST_RESET"] == "1" {
                 try? files.removeItem(at: root)
                 try? ReaderCredentials(service: service).remove()
+                try? ReaderCredentials(service: service + ".anthropic").remove()
             }
             if let value = environment["PAPER_READER_BASE_URL"], let url = URL(string: value),
                ["localhost", "127.0.0.1"].contains(url.host ?? "") { baseURL = url }
@@ -32,9 +34,12 @@ private struct LibrarySetup {
         store = DocumentStore(root: root.appendingPathComponent("Library", isDirectory: true))
         catalog = ReaderCatalog(url: root.appendingPathComponent("reader-catalog.json"))
         credentials = ReaderCredentials(service: service)
+        aiCredentials = ReaderCredentials(service: service + ".anthropic")
         // One-time development provisioning, outside the app bundle and repository.
         // The credential file is removed only after successful Keychain storage.
         let provision = files.temporaryDirectory.appendingPathComponent("reader-token.txt")
+        do { try aiCredentials.consumeProvisionedToken(at: files.temporaryDirectory.appendingPathComponent("anthropic-key.txt")) }
+        catch { /* AI settings allow a retry. */ }
         do { try credentials.consumeProvisionedToken(at: provision) }
         catch { /* Connection UI offers retry without risking any saved PDFs. */ }
     }
@@ -43,6 +48,14 @@ private struct LibrarySetup {
 struct ReadingView: View {
     @StateObject private var reading: ReadingModel
     @StateObject private var library: ReaderLibraryModel
+    private let readerCredentials: ReaderCredentials
+    private let aiCredentials: ReaderCredentials
+    private let readerBaseURL: URL
+    @State private var reviewDocument: StoredDocument?
+    @State private var removing: StoredDocument?
+    @State private var showRemoved = false
+    @State private var showAISettings = false
+    @FocusState private var searchFocused: Bool
     @State private var downloaded = false
     @State private var query = ""
     @State private var showImporter = false
@@ -51,6 +64,7 @@ struct ReadingView: View {
     @State private var status = "Your downloaded PDFs and markup stay on this iPad."
     init() {
         let setup = LibrarySetup()
+        readerCredentials = setup.credentials; aiCredentials = setup.aiCredentials; readerBaseURL = setup.baseURL
         _reading = StateObject(wrappedValue: ReadingModel(store: setup.store))
         _library = StateObject(wrappedValue: ReaderLibraryModel(store: setup.store, catalog: setup.catalog,
             credentials: setup.credentials, makeAPI: { ReaderAPI(token: $0, baseURL: setup.baseURL) }))
@@ -73,6 +87,7 @@ struct ReadingView: View {
                     HStack {
                         Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
                         TextField("Search title, author, or description", text: $query)
+                            .focused($searchFocused)
                             .accessibilityIdentifier("pdf-search")
                             .textInputAutocapitalization(.never).autocorrectionDisabled()
                         if !query.isEmpty { Button { query = "" } label: { Image(systemName: "xmark.circle.fill") }.accessibilityLabel("Clear search") }
@@ -81,13 +96,14 @@ struct ReadingView: View {
                         HStack(spacing: 12) {
                             ProgressView()
                             VStack(alignment: .leading, spacing: 3) {
-                                Text("Refreshing PDF titles and descriptions").font(.subheadline)
+                                Text("Checking for updated PDFs").font(.subheadline)
                                 elapsed(from: library.refreshStarted, hint: "\(library.receivedCount) found · Large libraries can take a minute.")
                             }
                         }.accessibilityIdentifier("refresh-progress")
                     } else if !downloaded, library.connected {
                         HStack {
-                            Button("Refresh library", systemImage: "arrow.clockwise") { Task { await library.refresh() } }
+                            Button("Check for updates", systemImage: "arrow.clockwise") { Task { await library.refresh() } }
+                            Menu { Button("Refresh entire catalog") { Task { await library.refresh(full: true) } } } label: { Image(systemName:"ellipsis") }.accessibilityLabel("Refresh options")
                                 .font(.subheadline).accessibilityIdentifier("refresh-library")
                             Spacer()
                             if let date = library.lastSynced {
@@ -118,6 +134,12 @@ struct ReadingView: View {
                             .accessibilityIdentifier("reader-connection")
                     }
                     ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("Recently Removed") { showRemoved = true }
+                            Button("AI settings") { showAISettings = true }
+                        } label: { Image(systemName:"ellipsis.circle") }.accessibilityLabel("Library actions")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
                         Button("Import PDF", systemImage: "folder") { showImporter = true }.disabled(reading.importing)
                     }
                 }
@@ -132,6 +154,20 @@ struct ReadingView: View {
                     case .failure(let error): reading.error = error.localizedDescription
                     }
                 }
+                .fullScreenCover(item: $reviewDocument) { document in
+                    ReviewView(model: ReviewModel(document:document,store:reading.store,readerCredentials:readerCredentials,aiCredentials:aiCredentials,readerBaseURL:readerBaseURL,anthropicEndpoint:analysisEndpoint))
+                }
+                .sheet(isPresented:$showRemoved) { RemovedDownloadsView(store:reading.store,onChange:{library.reloadDownloads()}) }
+                .sheet(isPresented:$showAISettings) { AISettingsView(credentials:aiCredentials) }
+                .confirmationDialog("Remove this download?",isPresented:Binding(get:{removing != nil},set:{if !$0{removing=nil}}),titleVisibility:.visible) {
+                    Button("Move to Recently Removed",role:.destructive) {
+                        if let document=removing {
+                            do { try reading.store.removeDownload(document);library.reloadDownloads();status="Moved to Recently Removed. Your markup can be restored." }
+                            catch { reading.error="This PDF couldn’t be removed. Its files remain on this iPad." }
+                        }
+                        removing=nil
+                    }
+                } message: { Text("The PDF, markup, and review drafts can be restored from Recently Removed. Storage is freed only when you permanently delete them.") }
                 .sheet(isPresented: $showConnection) { connectionSheet }
                 .sheet(item: $unavailablePDF) { pdf in unavailableSheet(pdf) }
                 .fullScreenCover(item: $reading.selected) { document in
@@ -151,9 +187,17 @@ struct ReadingView: View {
                 } message: { Text(reading.error ?? "") }
                 .onChange(of: reading.documents) { _, _ in library.reloadDownloads() }
                 .task { await library.start() }
-        }.tint(Color(red: 0.20, green: 0.31, blue: 0.25))
+        }.tint(Color(red: 0.20, green: 0.31, blue: 0.25)).preferredColorScheme(.light)
     }
-    private var shownPDFCount: Int { downloaded ? library.downloads.count : library.pdfs.count }
+    private var analysisEndpoint: URL {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["PAPER_UI_TEST"] == "1", ["localhost","127.0.0.1"].contains(readerBaseURL.host ?? "") {
+            return readerBaseURL.deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("anthropic/messages")
+        }
+        #endif
+        return URL(string:"https://api.anthropic.com/v1/messages")!
+    }
+    private var shownPDFCount: Int { downloaded ? library.filteredDownloads(query:query).count : library.filteredPDFs(query:query).count }
     private func tab(_ title: String, selected: Bool, id: String, action: @escaping () -> Void) -> some View {
         Button(action: action) { Text(title).font(.subheadline.weight(.medium)).padding(.horizontal, 16).padding(.vertical, 10)
             .foregroundStyle(selected ? Color.white : Color.accentColor)
@@ -173,15 +217,16 @@ struct ReadingView: View {
             ForEach(records) { pdf in
                 VStack(alignment: .leading, spacing: 12) {
                     HStack(alignment: .top, spacing: 20) {
+                        DocumentCover(local:library.localDocument(for:pdf),store:reading.store,remote:pdf.imageURL)
                         metadata(title: pdf.title, author: pdf.author, summary: pdf.summary)
                         Spacer(minLength: 0)
                         if let local = library.localDocument(for: pdf) {
-                            Button("Open") { reading.select(local) }.buttonStyle(.bordered).accessibilityIdentifier("open-\(pdf.id)")
+                            Button("Open") { searchFocused=false;reading.select(local) }.buttonStyle(.bordered).accessibilityIdentifier("open-\(pdf.id)")
                         } else if library.activeDownloadID == pdf.id {
                             ProgressView().padding(12).accessibilityLabel("Downloading PDF")
                         } else if pdf.canDownload {
-                            Button(library.downloadErrorID == pdf.id ? "Retry" : "Download") {
-                                Task { if let document = await library.download(pdf) { reading.select(document) } }
+                            Button(library.removedDocument(for:pdf) != nil ? "Restore" : library.downloadErrorID == pdf.id ? "Retry" : "Download") {
+                                Task { if let document = await library.download(pdf) { searchFocused=false;reading.select(document) } }
                             }.buttonStyle(.bordered).disabled(library.activeDownloadID != nil)
                                 .accessibilityIdentifier("download-\(pdf.id)")
                         } else {
@@ -207,10 +252,16 @@ struct ReadingView: View {
             ForEach(records) { document in
                 let remote = library.pdfs.first { $0.id == document.readerID }
                 HStack(alignment: .top, spacing: 20) {
+                    DocumentCover(local:document,store:reading.store,remote:remote?.imageURL)
                     metadata(title: remote?.title ?? document.title, author: remote?.author ?? document.author, summary: remote?.summary ?? document.summary)
                     Spacer(minLength: 0)
-                    Button("Open") { reading.select(document) }.buttonStyle(.bordered)
+                    Button("Open") { searchFocused=false;reading.select(document) }.buttonStyle(.bordered)
                         .accessibilityIdentifier("open-\(document.readerID ?? document.id.uuidString)")
+                    Menu {
+                        Button("Review markup",systemImage:"text.bubble") { searchFocused=false;reviewDocument=document }
+                        if let url=try? reading.store.workingPDFURL(for:document) { ShareLink("Export annotated PDF",item:url) }
+                        Button("Remove download…",systemImage:"trash",role:.destructive) { removing=document }
+                    } label: { Image(systemName:"ellipsis").padding(10) }.accessibilityLabel("Actions for \(remote?.title ?? document.title)").accessibilityIdentifier("actions-\(document.readerID ?? document.id.uuidString)")
                 }.padding(22).frame(maxWidth: .infinity, alignment: .leading).background(.background)
             }
         }

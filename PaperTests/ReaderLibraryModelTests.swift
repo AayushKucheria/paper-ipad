@@ -32,6 +32,13 @@ private actor LibraryTestService: ReaderServing {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
     override func tearDownWithError() throws { try FileManager.default.removeItem(at: root) }
+    func testFreshCachedLaunchDoesNotReplaceCatalogWithAnotherFullScan() async throws {
+        let cached = [ReaderPDF(id: "keep", title: "Saved metadata")]
+        try catalog.save(cached, syncedAt: Date())
+        let model = ReaderLibraryModel(store: store, catalog: catalog, api: LibraryTestService())
+        await model.start()
+        XCTAssertEqual(model.pdfs, cached, "Fresh cached startup must not run a full metadata scan")
+    }
     func testRefreshFetchesMetadataOnlyAndSearchesAllThreeFields() async throws {
         let records = [ReaderPDF(id: "one", title: "Reading", author: "Alex", summary: "Margins and meaning"), ReaderPDF(id: "two", title: "Thinking")]
         let service = LibraryTestService(records: records)
@@ -93,9 +100,28 @@ private actor LibraryTestService: ReaderServing {
         let reopened = await offline.download(ReaderPDF(id: metadata.id, title: "Renamed elsewhere"))
         XCTAssertEqual(reopened?.id, document.id)
         let empty = ReaderLibraryModel(store: store, catalog: catalog, api: LibraryTestService())
-        await empty.refresh()
+        await empty.refresh(full: true)
         XCTAssertTrue(empty.pdfs.isEmpty)
         XCTAssertEqual(empty.downloads.map(\.id), [document.id])
         XCTAssertEqual(try Data(contentsOf: working), edited)
+    }
+}
+
+private actor DeltaLibraryService: ReaderServing {
+    var since:Date?
+    func listPDFs(progress:@escaping @Sendable(Int)->Void) async throws->[ReaderPDF]{throw ReaderAPIError.serverFailure}
+    func listPDFs(updatedAfter:Date?,progress:@escaping @Sendable(Int)->Void) async throws->[ReaderPDF]{since=updatedAfter;return [ReaderPDF(id:"changed",title:"Updated")]}
+    func downloadPDF(id:String,progress:@escaping @Sendable(Int64,Int64?)->Void) async throws->URL{throw ReaderAPIError.serverFailure}
+}
+extension ReaderLibraryModelTests {
+    func testIncrementalRefreshMergesWithoutDroppingUnchangedRecords() async throws {
+        let checkpoint=Date().addingTimeInterval(-1000)
+        try catalog.save([ReaderPDF(id:"retained",title:"Unchanged"),ReaderPDF(id:"changed",title:"Old")],syncedAt:checkpoint)
+        let service=DeltaLibraryService(), model=ReaderLibraryModel(store:store,catalog:catalog,api:service)
+        await model.refresh()
+        XCTAssertEqual(Set(model.pdfs.map(\.id)),["retained","changed"])
+        XCTAssertEqual(model.pdfs.first(where:{$0.id=="changed"})?.title,"Updated")
+        let since=await service.since;XCTAssertEqual(since,checkpoint.addingTimeInterval(-60))
+        XCTAssertEqual(try catalog.load()?.documents.count,2)
     }
 }

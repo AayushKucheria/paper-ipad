@@ -16,6 +16,7 @@ struct NativePDFPreview: UIViewControllerRepresentable {
         preview.dataSource = context.coordinator
         preview.delegate = context.coordinator
         preview.modalPresentationStyle = .fullScreen
+        preview.overrideUserInterfaceStyle = .light
         return Presenter(preview: preview)
     }
     func updateUIViewController(_ controller: Presenter, context: Context) {}
