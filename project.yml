@@ -1,0 +1,44 @@
+name: Paper
+options:
+  bundleIdPrefix: com.aayush
+  deploymentTarget:
+    iOS: '18.0'
+settings:
+  base:
+    SWIFT_VERSION: '5.0'
+    TARGETED_DEVICE_FAMILY: '2'
+    CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: <your-team-id>
+    GENERATE_INFOPLIST_FILE: YES
+    INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+    INFOPLIST_KEY_UILaunchScreen_Generation: YES
+    INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+    INFOPLIST_KEY_CFBundleDisplayName: Paper
+    SUPPORTS_MACCATALYST: NO
+targets:
+  Paper:
+    type: application
+    platform: iOS
+    sources: [Paper]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.aayush.paper.reader
+  PaperTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [PaperTests]
+    dependencies:
+      - target: Paper
+  PaperUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [PaperUITests]
+    dependencies:
+      - target: Paper
+schemes:
+  Paper:
+    build:
+      targets:
+        Paper: all
+    test:
+      targets: [PaperTests, PaperUITests]
