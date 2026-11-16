@@ -12,7 +12,7 @@
 
 The approved library/review build is installed. All 34 unit tests and the simulator review/Markup flows pass. Real iPad Anthropic analysis and the final 717-PDF/690-cover refresh pass; screenshots inspected. Reader token and Anthropic key are in separate device Keychain services; `.env` remains ignored. Commands and key provisioning are in AGENTS.md.
 
-Durable latest backup: `~/Documents/Paper Backups/2026-10-21-013041`, including `final/`. All 16 Library files, including the new review.json, retained their hashes after the final refresh. Private result bundles are listed in PLAN.md.
+Durable latest backup: `~/Documents/Paper Backups/<backup-timestamp>`, including `final/`. All 16 Library files, including the new review.json, retained their hashes after the final refresh. Private result bundles are listed in PLAN.md.
 
 ## Next logical step
 

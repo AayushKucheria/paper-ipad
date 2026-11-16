@@ -12,3 +12,8 @@ reader-token*
 *.credentials
 *backup*/
 *.pdf.bak
+
+!.env.example
+
+__pycache__/
+*.pyc

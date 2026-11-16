@@ -35,7 +35,7 @@ Last run: 34 unit tests, 0 failures (21 Oct 2026). Simulator review/send/restore
 
 ## Build and install on the iPad
 
-Preferred: `python3 scripts/update-ipad.py`. It backs up Documents to `~/Documents/Paper Backups`, builds, checks bundle/signing identity, installs in place, compares Library SHA-256 hashes, then launches. Keep the iPad unlocked and finish Markup edits first. The 21 Oct update preserved all 16 Documents files. Use `--renew-signing` to request fresh automatic provisioning and require a later expiry before installation. Verify embedded expiry; a normal rebuild may reuse a profile.
+Export your own `PAPER_DEVICE_UDID` and `PAPER_TEAM_ID` first (see `.env.example`). Preferred: `python3 scripts/update-ipad.py`. It backs up Documents to `~/Documents/Paper Backups`, builds, checks bundle/signing identity, installs in place, compares Library SHA-256 hashes, then launches. Keep the iPad unlocked and finish Markup edits first. The 21 Oct update preserved all 16 Documents files. Use `--renew-signing` to request fresh automatic provisioning and require a later expiry before installation. Verify embedded expiry; a normal rebuild may reuse a profile.
 
 Manual commands (back up first):
 
@@ -51,7 +51,7 @@ xcrun devicectl device process launch --device <your-device-udid> \
 
 ## Provisioning the Anthropic key
 
-Preferred: AI settings in the app. Development: `python3 scripts/provision-anthropic.py` reads `ANTHROPIC_API_KEY` from ignored `.env`, copies a private one-time file to `tmp/anthropic-key.txt`, then deletes the local copy. Relaunch with `xcrun devicectl device process launch --terminate-existing --device <your-device-udid> com.aayush.paper.reader`. The app moves the key into the separate `com.aayush.paper.reader.anthropic` Keychain service and deletes the import file. Never display keys, pass them in arguments, or bundle `.env`.
+Preferred: AI settings in the app. Export `PAPER_DEVICE_UDID` for development provisioning. Development: `python3 scripts/provision-anthropic.py` reads `ANTHROPIC_API_KEY` from ignored `.env`, copies a private one-time file to `tmp/anthropic-key.txt`, then deletes the local copy. Relaunch with `xcrun devicectl device process launch --terminate-existing --device <your-device-udid> com.aayush.paper.reader`. The app moves the key into the separate `com.aayush.paper.reader.anthropic` Keychain service and deletes the import file. Never display keys, pass them in arguments, or bundle `.env`.
 
 Opt-in physical analysis test: `TEST_RUNNER_PAPER_LIVE_REVIEW_ID=<localUUID> xcodebuild test -project Paper.xcodeproj -scheme Paper -destination 'id=<your-device-udid>' -derivedDataPath build-device -allowProvisioningUpdates -only-testing:PaperUITests/ReviewLiveSmokeTests`. This sends selected saved pages to Anthropic, persists drafts, and creates no Reader highlight.
 

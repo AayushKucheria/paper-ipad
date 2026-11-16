@@ -4,7 +4,7 @@ The findings below motivated the approved implementation installed on 21 October
 
 Paper was rebuilt and installed in place. All 15 library files have identical SHA-256 hashes before and after installation. The app launched successfully. Its embedded profile still expires **27 October 2026, 14:32:40 UTC**; this rebuild reused the profile.
 
-The durable backup is `~/Documents/Paper Backups/2026-10-20-231258`. `before`, `after-install`, and `library-sha256.json` retain the verification. An earlier two-document snapshot was also moved out of `/tmp`.
+The durable backup is `~/Documents/Paper Backups/<backup-timestamp>`. `before`, `after-install`, and `library-sha256.json` retain the verification. An earlier two-document snapshot was also moved out of `/tmp`.
 
 ## Recommended changes
 

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Back up, build, install in place, and verify Paper's library. Never uninstalls."""
-import argparse, datetime, hashlib, json, pathlib, plistlib, shutil, subprocess, sys
+import argparse, os, datetime, hashlib, json, pathlib, plistlib, shutil, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-DEVICE = '<your-device-udid>'
+DEVICE = os.environ.get('PAPER_DEVICE_UDID', '')
+TEAM = os.environ.get('PAPER_TEAM_ID', '')
 BUNDLE = 'com.aayush.paper.reader'
 APP = ROOT / 'build-device/Build/Products/Debug-iphoneos/Paper.app'
 
@@ -35,6 +36,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--renew-signing', action='store_true', help='Request fresh automatic provisioning and require a later expiry before installing')
     args = parser.parse_args()
+    if not DEVICE or not TEAM:
+        parser.error('Set PAPER_DEVICE_UDID and PAPER_TEAM_ID before updating a device')
     stamp = datetime.datetime.now().strftime('%Y-%m-%d-%H%M%S')
     backup = pathlib.Path.home() / 'Documents/Paper Backups' / stamp
     backup.mkdir(parents=True, mode=0o700)
@@ -52,7 +55,7 @@ def main():
                       pathlib.Path.home() / 'Library/MobileDevice/Provisioning Profiles'):
             for cached in cache.glob('*.mobileprovision'):
                 decoded = plistlib.loads(run('security', 'cms', '-D', '-i', str(cached), capture_output=True).stdout)
-                if decoded.get('Entitlements', {}).get('application-identifier') == f'<your-team-id>.{BUNDLE}':
+                if decoded.get('Entitlements', {}).get('application-identifier') == f'{TEAM}.{BUNDLE}':
                     expiry = decoded['ExpirationDate']
                     old_expiry = max(old_expiry, expiry) if old_expiry else expiry
                     shutil.move(str(cached), str(profile_backup / cached.name))
@@ -69,7 +72,7 @@ def main():
     if info['CFBundleIdentifier'] != BUNDLE:
         raise RuntimeError('Unexpected bundle ID. Refusing to install.')
     profile = plistlib.loads(run('security', 'cms', '-D', '-i', str(APP / 'embedded.mobileprovision'), capture_output=True).stdout)
-    if profile['Entitlements']['application-identifier'] != f'<your-team-id>.{BUNDLE}':
+    if profile['Entitlements']['application-identifier'] != f'{TEAM}.{BUNDLE}':
         raise RuntimeError('Unexpected signing identity. Refusing to install.')
     expiry = profile['ExpirationDate']
     if expiry <= datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None):
