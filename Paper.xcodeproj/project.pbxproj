@@ -215,15 +215,15 @@
 				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					A5BEBF59A819C87583581E99 = {
-						DevelopmentTeam = <your-team-id>;
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					ADDB513A0100CAD3879AF72F = {
-						DevelopmentTeam = <your-team-id>;
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 					};
 					AE037C4148A4D05D8C45E0E2 = {
-						DevelopmentTeam = <your-team-id>;
+						DevelopmentTeam = "";
 						ProvisioningStyle = Automatic;
 						TestTargetID = ADDB513A0100CAD3879AF72F;
 					};
