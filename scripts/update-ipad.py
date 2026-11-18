@@ -66,7 +66,7 @@ def main():
     with (backup / 'build.log').open('w') as log:
         run('xcodebuild', *(['clean', 'build'] if args.renew_signing else ['build']), '-project', 'Paper.xcodeproj', '-scheme', 'Paper',
             '-destination', f'id={DEVICE}', '-derivedDataPath', 'build-device',
-            '-allowProvisioningUpdates', '-allowProvisioningDeviceRegistration', stdout=log, stderr=subprocess.STDOUT)
+            '-allowProvisioningUpdates', '-allowProvisioningDeviceRegistration', f'DEVELOPMENT_TEAM={TEAM}', stdout=log, stderr=subprocess.STDOUT)
     with (APP / 'Info.plist').open('rb') as stream:
         info = plistlib.load(stream)
     if info['CFBundleIdentifier'] != BUNDLE:
