@@ -18,7 +18,7 @@ Agent-facing notes for Paper. The README is for people; everything operational l
 - Project definition: `project.yml` (run `xcodegen generate` after changing targets). Targets iPadOS 18+.
 - Bundle ID `com.aayush.paper.reader`; Personal Team `<your-team-id>`.
 - Device: iPad Air (5th gen), UDID `<your-device-udid>`, Developer Mode on.
-- Personal Team profile expires 27 Oct 2026 at 22:03:04 UTC (28 Oct 00:03:04 Helsinki). Rebuild and reinstall with the same bundle ID; never uninstall (it would delete the local library).
+- Paper uses SideStore renewal as of 18 November 2026; see below. Preserve the same bundle/team identity; never uninstall (it would delete the local library).
 - Never print, commit or pass a Reader token in command arguments.
 
 ## Unit tests (simulator)
@@ -85,3 +85,16 @@ xcodebuild test -project Paper.xcodeproj -scheme Paper -destination 'id=<your-de
 
 - https://developer.apple.com/documentation/quicklook/qlpreviewcontrollerdelegate/previewcontroller%28_%3Aeditingmodefor%3A%29
 - https://developer.apple.com/videos/play/wwdc2019/719/
+
+
+## SideStore renewal — 18 November 2026
+
+Paper is now managed by SideStore on the iPad. Free signing still expires after seven days; check Paper’s counter in SideStore → My Apps and refresh before expiry. Refreshing needs Wi-Fi with internet and LocalDevVPN connected. The Mac can be off. Background refresh has not yet been verified, so manually refresh every few days for now. Downloaded reading and handwriting need neither VPN nor internet.
+
+Migration retained `com.aayush.paper.reader` and team `<your-team-id>`. For future imports, enable Settings → Advanced Settings → User Customizations → Customize AppID; leave the original App ID and uncheck Append Team ID. Never uninstall Paper. The 18 November migration preserved all 35 Documents files byte for byte and the app launched successfully. Reader/Anthropic credential continuity remains unverified.
+
+Backup: `~/Documents/Paper Backups/2026-11-18-213214/before`; SHA-256 manifest: `library-sha256.json` in its parent. Post-install verification copy: `~/Documents/Paper Backups/2026-11-18-sidestore-verification`. Prepared IPA: `~/Documents/Paper Backups/SideStore Setup/Paper.ipa` (retained 22 October build; re-sign before installation).
+
+The old profile expired 27 October 2026 at 22:03:04 UTC. Xcode recovery failed because no cached profile or configured Apple Account was available. SideStore recovery succeeded; no application code was changed or rebuilt this session. Future Xcode updates must coordinate certificate use with SideStore and retain identity, backup and hash checks.
+
+Setup/refresh instructions: https://docs.sidestore.io/docs/installation/install and https://docs.sidestore.io/docs/installation/prerequisites .

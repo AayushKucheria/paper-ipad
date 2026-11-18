@@ -94,3 +94,8 @@ Local removal uses Recently Removed with restore and explicit permanent deletion
 
 
 Live cover validation: the first full refresh exposed a malformed image_url at result index 39. A content-free decoder probe confirmed the field; an API test reproduced the failure. Tolerant optional cover decoding fixed it. All 34 unit tests pass. Final physical refresh passed (717 records, 690 remote cover values), and all 16 Library files including review.json retained their hashes. Missing/invalid covers use a placeholder.
+
+
+## Recovery evidence — 18 November 2026
+
+Paper migrated to SideStore on 18 November 2026. Refresh Paper before its seven-day expiry in SideStore → My Apps with Wi-Fi and LocalDevVPN connected; the Mac can be off. Background renewal remains unverified. The original bundle/team identity and all 35 Documents files were preserved, and launch succeeded. See AGENTS.md for migration and backup details. No source-code change or new build was required; SideStore re-signed the retained device build.

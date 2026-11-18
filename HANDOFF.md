@@ -1,19 +1,23 @@
-# Handoff — 21 October 2026
+# Handoff — 18 November 2026
+
+## In progress
+
+- Paper recovered through SideStore. User imported the retained 22 October Paper.ipa with Customize AppID enabled and Append Team ID unchecked. Original bundle ID `com.aayush.paper.reader` and team `<your-team-id>` retained. Device launch succeeded; all 35 Documents hashes match the pre-migration manifest.
+- Verify a subsequent SideStore refresh and background renewal. Until verified, manually refresh every few days using Wi-Fi and LocalDevVPN. Mac can be off. Check the current expiry in SideStore; no exact new profile expiry was measured.
+- Verify Reader and Anthropic Keychain access after migration without exposing credentials or sending an unconfirmed highlight.
 
 ## Known issues / loose ends
 
-- User plans to start reading and marking up now; local use is independent of Reader delivery verification. Sending remains a manual review/confirm flow.
-- User prefers free personal-app installation over paid Developer Program membership. SideStore is the recommended candidate to investigate for on-device renewal; no migration or setup was authorized or performed. Preserve bundle/signing identity, Documents and Keychain access before attempting a switch. Existing safe update script remains available. Research links are in README.md.
-- Analysis context and cost are documented in README.md: selected consecutive 1–6 page images plus original text, only on explicit analysis. Estimated US$1–$3 per 100 pages uses assumed token counts at current Sonnet 5.5 rates; actual API usage is not retained or displayed. No metering feature was requested or implemented.
-- **Signing expires 28 October 2026 at 00:03:04 Helsinki** (27 October 22:03:04 UTC). Renew with `python3 scripts/update-ipad.py --renew-signing`; keep the same bundle ID and never uninstall. Paid membership is the longer-lived option.
-- Real Reader passage matching, original PDF placement and downstream Readwise retrieval remain unverified. Controlled-service delivery, duplicate recovery and relaunch persistence pass. No native image/ink upload is promised.
-- Older Files imports need a Reader document association before sending. Analysis and local drafts already work; six drafts are saved from the physical-device check.
-- Palm marks remain unresolved; 17 PDFs previously lacked downloadable sources. Broader accessibility, interruption and performance coverage is listed in PLAN.md.
+- Pre-existing feature edits and untracked article/backup/markup files remain in the working tree; they were present before this recovery session and are excluded from its commit. Earlier 22 October notes report 57 passing unit tests and five UI flows; no code tests were rerun for this signing-only recovery.
+- Real Reader passage matching, original PDF placement and downstream Readwise retrieval still need a user-confirmed end-to-end check. Sending remains manual. Native ink/image upload is not promised.
+- User still needs to choose an in-app Files backup destination. Provider upload is separate from local checksum verification.
+- Palm strokes, older Files imports lacking Reader association, representative physics-article rendering, broader accessibility/interruption/performance coverage and 17 PDFs without download sources remain open. EPUB support is deferred.
+- Sonnet remains the analysis default; Haiku is selectable. Existing small-sample cost comparisons do not establish equal quality.
 
-The approved library/review build is installed. All 34 unit tests and the simulator review/Markup flows pass. Real iPad Anthropic analysis and the final 717-PDF/690-cover refresh pass; screenshots inspected. Reader token and Anthropic key are in separate device Keychain services; `.env` remains ignored. Commands and key provisioning are in AGENTS.md.
+Recovery backup: `~/Documents/Paper Backups/2026-11-18-213214/before` with sibling `library-sha256.json`. Post-install copy: `~/Documents/Paper Backups/2026-11-18-sidestore-verification`. All 35 files matched before launch. Earlier October backups remain retained. Prepared IPA: `~/Documents/Paper Backups/SideStore Setup/Paper.ipa`.
 
-Durable latest backup: `~/Documents/Paper Backups/2026-10-21-013041`, including `final/`. All 16 Library files, including the new review.json, retained their hashes after the final refresh. Private result bundles are listed in PLAN.md.
+The previous profile expired 27 October 22:03:04 UTC. Xcode renewal stopped on missing cached profiles; a normal build failed with No Accounts/no matching profile. Official iloader 2.4.1 was installed in /Applications; user completed SideStore 0.7.0 setup and certificate replacement. Do not uninstall Paper. Future Xcode installs must preserve identity and coordinate signing with SideStore.
 
 ## Next logical step
 
-Verify one user-confirmed Reader highlight and its downstream Readwise result, while keeping the 28 October signing deadline visible.
+Verify Paper’s next SideStore refresh and preserved Reader/Anthropic access; continue manual refreshes until background renewal is proven.

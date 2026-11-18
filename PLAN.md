@@ -36,7 +36,8 @@ Results are under `/tmp/paper-review-green-20261021.xcresult`, `/tmp/paper-live-
 - [ ] Verify one user-confirmed highlight in the real Reader account, then inspect original PDF placement and downstream Readwise retrieval. Controlled-service delivery is already covered.
 - [ ] Associate older Files imports with existing Reader documents for sending.
 - [ ] Diagnose palm strokes on the physical iPad; simulator tests cannot establish Pencil/palm behavior.
-- [ ] Renew before **28 October 00:03 Helsinki**, or move to longer-lived signing/distribution through paid membership.
+- [x] Recover expired signing through SideStore (18 November); retain app identity and verify all 35 Documents hashes and launch.
+- [ ] Verify next SideStore refresh, background renewal and Reader/Anthropic credential continuity.
 - [ ] Broaden coverage for interrupted removal, account replacement, cover cache/scroll performance, VoiceOver, Dynamic Type and hardware keyboard.
 - [ ] Consider automatic connection-sheet presentation on authentication failure; current errors direct the user to replace the token manually.
 
