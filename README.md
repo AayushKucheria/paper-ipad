@@ -2,18 +2,20 @@
 
 An iPad PDF library for reading and scribbling with Apple Pencil, connected to Readwise Reader. Keep the original PDF untouched, save native Markup in a working copy, and optionally turn selected marked pages into editable review notes with Claude.
 
+[Watch the 23-second demo](docs/demo.mp4) · Draw on a sample PDF with Markup, save, and return to Downloaded.
+
 <table>
   <tr>
     <td><img src="docs/images/library.png" alt="Paper’s Reader library with synthetic sample PDFs, search, and download controls" width="400"></td>
-    <td><img src="docs/images/markup.png" alt="A sample PDF open in Apple’s native Markup tools, with ink on the page" width="400"></td>
+    <td><a href="docs/demo.mp4"><img src="docs/images/demo.gif" alt="Animated demo: underline sample text, draw a check mark, save, and return to Downloaded" width="400"></a></td>
   </tr>
   <tr>
     <td>Browse your Reader PDFs and download them for offline reading.</td>
-    <td>Write directly on the PDF using native Markup.</td>
+    <td>Write directly on the PDF using native Markup. <a href="docs/demo.mp4">Watch the MP4</a> · <a href="docs/images/markup.png">Still screenshot</a></td>
   </tr>
 </table>
 
-Captured from the iPad simulator using synthetic sample documents.
+Captured from the iPad simulator using synthetic sample documents. The demo is silent; the animated preview loops.
 
 ## Try it
 
