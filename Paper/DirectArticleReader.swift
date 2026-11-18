@@ -10,7 +10,8 @@ struct DirectArticleReader: View {
     let onClose: () -> Void
     let makeReview: ([AnalysisPage], String) -> ReviewModel
 
-    @State private var index = 0
+    @State private var navigator: SectionNavigator
+    @State private var arrival = SectionNavigator.Arrival.saved
     @State private var controller: DirectInkController?
     private struct ReviewPresentation: Identifiable {
         let id = UUID()
@@ -22,11 +23,33 @@ struct DirectArticleReader: View {
     @State private var capturing = false
     @State private var error: String?
 
+    init(document: StoredDocument, sections: [DirectReadingSection], store: DocumentStore,
+         onClose: @escaping () -> Void, makeReview: @escaping ([AnalysisPage], String) -> ReviewModel) {
+        self.document = document
+        self.sections = sections
+        self.store = store
+        self.onClose = onClose
+        self.makeReview = makeReview
+        let saved = UserDefaults.standard.integer(forKey: "paper.direct.chapter." + document.id.uuidString)
+        _navigator = State(initialValue: SectionNavigator(index: saved, count: sections.count))
+    }
+
+    private var index: Int { navigator.index }
     private var chapterKey: String { "paper.direct.chapter." + document.id.uuidString }
 
     var body: some View {
         NavigationStack {
-            DirectInkSurface(section: sections[index], ink: DirectInkStore(document: document, store: store),
+            DirectInkSurface(section: sections[index], arrival: arrival,
+                previousTitle: navigator.neighbour(.previous).map { sections[$0].title },
+                nextTitle: navigator.neighbour(.next).map { sections[$0].title },
+                ink: DirectInkStore(document: document, store: store),
+                onBoundary: { edge in
+                    var next = navigator
+                    guard let landing = next.step(edge) else { return }
+                    controller?.persist()
+                    arrival = landing
+                    navigator = next
+                },
                 onController: { controller = $0 },
                 onState: { visibleInk = $0 },
                 onError: { error = $0 })
@@ -43,8 +66,8 @@ struct DirectArticleReader: View {
                                 ForEach(sections.indices, id: \.self) { destination in
                                     Button(sections[destination].title) {
                                         controller?.persist()
-                                        index = destination
-                                        UserDefaults.standard.set(index, forKey: chapterKey)
+                                        arrival = .saved
+                                        navigator.jump(to: destination)
                                     }
                                 }
                             }
@@ -57,8 +80,8 @@ struct DirectArticleReader: View {
                 }
         }
         .preferredColorScheme(.light)
-        .onAppear {
-            index = min(max(0, UserDefaults.standard.integer(forKey: chapterKey)), sections.count - 1)
+        .onChange(of: navigator.index) { _, new in
+            UserDefaults.standard.set(new, forKey: chapterKey)
         }
         .alert("Paper", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
             Button("OK", role: .cancel) {}
@@ -99,7 +122,11 @@ struct DirectArticleReader: View {
 
 private struct DirectInkSurface: UIViewControllerRepresentable {
     let section: DirectReadingSection
+    let arrival: SectionNavigator.Arrival
+    let previousTitle: String?
+    let nextTitle: String?
     let ink: DirectInkStore
+    let onBoundary: (SectionNavigator.Edge) -> Void
     let onController: (DirectInkController) -> Void
     let onState: (Bool) -> Void
     let onError: (String) -> Void
@@ -113,7 +140,10 @@ private struct DirectInkSurface: UIViewControllerRepresentable {
     func updateUIViewController(_ controller: DirectInkController, context: Context) {
         controller.onState = onState
         controller.onError = onError
-        controller.open(section)
+        controller.onBoundary = onBoundary
+        controller.previousTitle = previousTitle
+        controller.nextTitle = nextTitle
+        controller.open(section, arrival: arrival)
     }
 }
 
@@ -141,6 +171,12 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
     private var drawingNeedsSave = false
     var onState: ((Bool) -> Void)?
     var onError: ((String) -> Void)?
+    var onBoundary: ((SectionNavigator.Edge) -> Void)?
+    var previousTitle: String?
+    var nextTitle: String?
+    private static let boundaryThreshold: CGFloat = 80
+    private let previousHint = DirectInkController.makeHint()
+    private let nextHint = DirectInkController.makeHint()
 
     override var undoManager: UndoManager? { inkUndo }
 
@@ -174,7 +210,8 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         canvas.backgroundColor = .clear
         canvas.isOpaque = false
         canvas.contentInsetAdjustmentBehavior = .never
-        canvas.bounces = false
+        canvas.bounces = true
+        canvas.alwaysBounceVertical = true
         canvas.showsHorizontalScrollIndicator = false
         canvas.drawingPolicy = .pencilOnly
         canvas.delegate = self
@@ -185,6 +222,10 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
             canvas.drawingPolicy = .anyInput
         }
         #endif
+        for (hint, id) in [(previousHint, "direct-previous-hint"), (nextHint, "direct-next-hint")] {
+            hint.accessibilityIdentifier = id
+            view.addSubview(hint)
+        }
         toolPicker.addObserver(canvas)
         contentSizeObservation = web.scrollView.observe(\.contentSize) { [weak self] _, _ in
             MainActor.assumeIsolated { self?.updateScrollGeometry() }
@@ -202,6 +243,8 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         web.frame = surface.bounds
         canvas.frame = surface.bounds
         updateScrollGeometry()
+        previousHint.center = CGPoint(x: view.bounds.midX, y: view.safeAreaInsets.top + 28)
+        nextHint.center = CGPoint(x: view.bounds.midX, y: view.bounds.maxY - view.safeAreaInsets.bottom - 28)
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -228,11 +271,13 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         canvas.resignFirstResponder()
     }
 
-    func open(_ section: DirectReadingSection) {
+    func open(_ section: DirectReadingSection, arrival: SectionNavigator.Arrival = .saved) {
         guard sectionID != section.id else { return }
         persist()
         loadViewIfNeeded()
         ready = false
+        previousHint.alpha = 0
+        nextHint.alpha = 0
         sectionID = section.id
         activeNavigation = nil
         hideTools()
@@ -250,7 +295,7 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         canvas.drawing = state.drawing
         savedOffset = state.offset
         drawingNeedsSave = false
-        restorePosition = state.offset
+        restorePosition = SectionNavigator.startOffset(arrival, savedOffset: state.offset)
         documentHeightAtLoad = nil
         web.stopLoading()
         loadTask?.cancel()
@@ -340,11 +385,60 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         guard ready, restorePosition == nil else { return }
         syncArticleOffset()
         publishState()
+        updateBoundaryHints()
         pendingPositionSave?.cancel()
         pendingPositionSave = Task { [weak self] in
             do { try await Task.sleep(for: .milliseconds(300)) } catch { return }
             self?.persist()
         }
+    }
+
+    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
+        // Only finger drags scroll the canvas (drawing policy is Pencil-only), so Pencil strokes never navigate.
+        guard ready, restorePosition == nil else { return }
+        let edge = SectionNavigator.boundary(offset: canvas.contentOffset.y, contentHeight: canvas.contentSize.height,
+                                             viewport: canvas.bounds.height, threshold: Self.boundaryThreshold)
+        if let edge, (edge == .next ? nextTitle : previousTitle) != nil {
+            previousHint.alpha = 0
+            nextHint.alpha = 0
+            onBoundary?(edge)
+        }
+    }
+
+    private static func makeHint() -> UILabel {
+        let label = PaddedLabel()
+        label.font = .systemFont(ofSize: 14, weight: .medium)
+        label.textColor = UIColor(white: 0.25, alpha: 1)
+        label.backgroundColor = UIColor(white: 0.95, alpha: 0.96)
+        label.layer.cornerRadius = 15
+        label.clipsToBounds = true
+        label.alpha = 0
+        return label
+    }
+
+    private func updateBoundaryHints() {
+        guard ready, restorePosition == nil, canvas.bounds.height > 0 else {
+            previousHint.alpha = 0
+            nextHint.alpha = 0
+            return
+        }
+        let maxOffset = max(0, canvas.contentSize.height - canvas.bounds.height)
+        let offset = canvas.contentOffset.y
+        configure(nextHint, title: nextTitle, text: { "Next: \($0) \u{2193}" }, pull: offset - maxOffset)
+        configure(previousHint, title: previousTitle, text: { "\u{2191} Previous: \($0)" }, pull: -offset)
+    }
+
+    private func configure(_ hint: UILabel, title: String?, text: (String) -> String, pull: CGFloat) {
+        guard let title, pull > 8 else { hint.alpha = 0; return }
+        let release = pull >= Self.boundaryThreshold
+        hint.text = release ? "Release to open \(title)" : text(title)
+        hint.sizeToFit()
+        hint.frame.size.width += 28
+        hint.frame.size.height = 30
+        hint.center = hint === nextHint
+            ? CGPoint(x: view.bounds.midX, y: view.bounds.maxY - view.safeAreaInsets.bottom - 28)
+            : CGPoint(x: view.bounds.midX, y: view.safeAreaInsets.top + 28)
+        hint.alpha = min(1, pull / Self.boundaryThreshold)
     }
 
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
@@ -440,4 +534,8 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         `;
         document.head.append(style);
         """
+}
+
+private final class PaddedLabel: UILabel {
+    override func drawText(in rect: CGRect) { super.drawText(in: rect.insetBy(dx: 14, dy: 0)) }
 }
