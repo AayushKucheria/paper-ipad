@@ -20,7 +20,12 @@ import OSLog
     }
     func select(_ document: StoredDocument) {
         do {
-            previewURL = try store.workingPDFURL(for: document)
+            if !FileManager.default.fileExists(atPath: store.pdfURL(for: document).path),
+               !(try store.directReadingSections(for: document)).isEmpty {
+                previewURL = nil
+            } else {
+                previewURL = try store.workingPDFURL(for: document)
+            }
             selected = document
             UserDefaults.standard.set(document.id.uuidString, forKey: "lastDocument")
         } catch { self.error = error.localizedDescription }
@@ -36,6 +41,9 @@ import OSLog
                 let document = try await Task.detached(priority: .userInitiated) {
                     let access = url.startAccessingSecurityScopedResource()
                     defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    if url.pathExtension.lowercased() == "epub" {
+                        return try store.importEPUB(at: url)
+                    }
                     return try store.importPDF(at: url)
                 }.value
                 documents = try store.documents()

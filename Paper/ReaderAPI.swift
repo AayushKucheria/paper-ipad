@@ -10,6 +10,9 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
     var sourceURL: URL?
     var savedAt: String?
     var imageURL: URL? = nil
+    var readingTime: String? = nil
+    var readingProgress: Double? = nil
+    var wordCount: Int? = nil
     var hasDownload: Bool
     var canDownload: Bool { hasDownload || githubRawURL != nil }
 
@@ -34,7 +37,7 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
     }
     private enum CodingKeys: String, CodingKey {
         case id, title, author, summary, hasDownload
-        case imageURL = "image_url"
+        case imageURL = "image_url", readingTime = "reading_time", readingProgress = "reading_progress", wordCount = "word_count"
         case readerURL = "url", sourceURL = "source_url", savedAt = "saved_at", rawSource = "raw_source_url"
     }
     init(from decoder: Decoder) throws {
@@ -47,6 +50,9 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
         sourceURL = try c.decodeIfPresent(URL.self, forKey: .sourceURL)
         savedAt = try c.decodeIfPresent(String.self, forKey: .savedAt)
         imageURL = try? c.decodeIfPresent(URL.self, forKey: .imageURL)
+        readingTime = try? c.decodeIfPresent(String.self, forKey: .readingTime)
+        if let progress = try? c.decodeIfPresent(Double.self, forKey: .readingProgress), (0...1).contains(progress) { readingProgress = progress }
+        wordCount = try? c.decodeIfPresent(Int.self, forKey: .wordCount)
         if c.contains(.rawSource) {
             hasDownload = !(try c.decodeIfPresent(String.self, forKey: .rawSource) ?? "").isEmpty
         } else { hasDownload = try c.decodeIfPresent(Bool.self, forKey: .hasDownload) ?? true }
@@ -59,28 +65,41 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
         try c.encodeIfPresent(sourceURL, forKey: .sourceURL); try c.encodeIfPresent(savedAt, forKey: .savedAt)
         try c.encode(hasDownload, forKey: .hasDownload)
         try c.encodeIfPresent(imageURL, forKey: .imageURL)
+        try c.encodeIfPresent(readingTime, forKey: .readingTime)
+        try c.encodeIfPresent(readingProgress, forKey: .readingProgress)
+        try c.encodeIfPresent(wordCount, forKey: .wordCount)
     }
 }
 protocol ReaderServing: Sendable {
     func listPDFs(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF]
     func listPDFs(updatedAfter: Date?, progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF]
+    func listArticles(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF]
+    func articleContent(id: String) async throws -> String
+    func listBooks(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF]
+    func downloadBook(id: String, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL
     func downloadPDF(id: String, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL
 }
 extension ReaderServing {
+    func listArticles(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] { [] }
+    func articleContent(id: String) async throws -> String { throw ReaderAPIError.unavailableArticle }
+    func listBooks(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] { [] }
+    func downloadBook(id: String, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL { throw ReaderAPIError.unavailableBook }
     func listPDFs(updatedAfter: Date?, progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
         try await listPDFs(progress: progress)
     }
 }
 enum ReaderAPIError: LocalizedError {
-    case authenticationRequired, throttled, unavailableSource, insecureSource, malformedResponse, paginationLoop, serverFailure, networkFailure
+    case authenticationRequired, throttled, unavailableSource, unavailableArticle, unavailableBook, insecureSource, malformedResponse, paginationLoop, serverFailure, networkFailure
     var errorDescription: String? {
         switch self {
         case .authenticationRequired: return "Reader could not authenticate. Check or replace your access token."
         case .throttled: return "Reader is busy. Please wait a minute and try again."
+        case .unavailableArticle: return "Reader has no readable article content yet. Try opening it in Reader, then prepare it again."
+        case .unavailableBook: return "Reader has no downloadable EPUB for this book. If you have the original file, import it from Files."
         case .unavailableSource: return "Reader has no downloadable original for this PDF. Open it in Reader to check the source."
-        case .insecureSource: return "This PDF source does not provide a secure download. Open it in Reader."
+        case .insecureSource: return "This source does not provide a secure download. Open it in Reader."
         case .malformedResponse, .paginationLoop: return "Reader returned an incomplete library response. Please try refreshing again."
-        case .serverFailure: return "The PDF service could not complete this request. Please try again."
+        case .serverFailure: return "Reader could not complete this request. Please try again."
         case .networkFailure: return "Could not connect. Check your internet connection and try again."
         }
     }
@@ -90,10 +109,12 @@ private struct ReaderRecord: Decodable {
     let category: String?
     let parentID: String?
     let rawSource: URL?
-    enum CodingKeys: String, CodingKey { case category; case parentID = "parent_id", rawSource = "raw_source_url" }
+    let htmlContent: String?
+    enum CodingKeys: String, CodingKey { case category; case parentID = "parent_id", rawSource = "raw_source_url", htmlContent = "html_content" }
     init(from decoder: Decoder) throws {
         var decodedPDF = try ReaderPDF(from: decoder)
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        htmlContent = try c.decodeIfPresent(String.self, forKey: .htmlContent)
         category = try c.decodeIfPresent(String.self, forKey: .category)
         parentID = try c.decodeIfPresent(String.self, forKey: .parentID)
         let rawString = try c.decodeIfPresent(String.self, forKey: .rawSource)?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -168,14 +189,57 @@ actor ReaderAPI: ReaderServing {
             return result
         } catch { logger.error("catalog_failure operation=\(operation, privacy: .public) elapsed=\(Date().timeIntervalSince(start))"); throw safe(error) }
     }
+    func listArticles(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
+        try await listReadingDocuments(category: "article", progress: progress)
+    }
+    func listBooks(progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
+        try await listReadingDocuments(category: "epub", progress: progress)
+    }
+    private func listReadingDocuments(category: String, progress: @escaping @Sendable (Int) -> Void) async throws -> [ReaderPDF] {
+        let operation = UUID().uuidString, started = Date()
+        logger.info("reading_catalog_start operation=\(operation, privacy: .public) category=\(category, privacy: .public)")
+        var cursor: String?, cursors = Set<String>(), ids = Set<String>(), result: [ReaderPDF] = []
+        do {
+            repeat {
+                var query = [URLQueryItem(name: "category", value: category), URLQueryItem(name: "limit", value: "100")]
+                if category == "epub" { query.append(URLQueryItem(name: "withRawSourceUrl", value: "true")) }
+                if let cursor { query.append(URLQueryItem(name: "pageCursor", value: cursor)) }
+                let page = try await fetchPage(query: query)
+                for record in page.results where record.category == category && record.parentID == nil {
+                    if ids.insert(record.pdf.id).inserted { result.append(record.pdf) }
+                }
+                progress(result.count)
+                logger.info("reading_catalog_page operation=\(operation, privacy: .public) count=\(result.count) elapsed=\(Date().timeIntervalSince(started))")
+                cursor = page.nextPageCursor
+                if let cursor, !cursors.insert(cursor).inserted { throw ReaderAPIError.paginationLoop }
+            } while cursor != nil
+            return result
+        } catch { logger.error("reading_catalog_failure operation=\(operation, privacy: .public) elapsed=\(Date().timeIntervalSince(started))"); throw safe(error) }
+    }
+    func articleContent(id: String) async throws -> String {
+        do {
+            let page = try await fetchPage(query: [URLQueryItem(name: "id", value: id), URLQueryItem(name: "withHtmlContent", value: "true")])
+            guard let record = page.results.first(where: { $0.pdf.id == id && $0.category == "article" && $0.parentID == nil }),
+                  let html = record.htmlContent, !html.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw ReaderAPIError.unavailableArticle }
+            return html
+        } catch { throw safe(error) }
+    }
     func downloadPDF(id: String, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL {
+        try await downloadOriginal(id: id, book: false, progress: progress)
+    }
+    func downloadBook(id: String, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL {
+        try await downloadOriginal(id: id, book: true, progress: progress)
+    }
+    private func downloadOriginal(id: String, book: Bool, progress: @escaping @Sendable (Int64, Int64?) -> Void) async throws -> URL {
         let operation = UUID().uuidString, start = Date()
         do {
             for attempt in 0...1 {
                 logger.info("source_resolution operation=\(operation, privacy: .public)")
                 let page = try await fetchPage(query: [URLQueryItem(name: "id", value: id), URLQueryItem(name: "withRawSourceUrl", value: "true")])
-                guard let record = page.results.first(where: { $0.pdf.id == id }),
-                      let url = record.rawSource ?? record.pdf.githubRawURL else { throw ReaderAPIError.unavailableSource }
+                guard let record = page.results.first(where: { $0.pdf.id == id && $0.parentID == nil && (!book || $0.category == "epub") }),
+                      let url = record.rawSource ?? (book ? nil : record.pdf.githubRawURL) else {
+                    throw book ? ReaderAPIError.unavailableBook : ReaderAPIError.unavailableSource
+                }
                 guard Self.isSecure(url) else { throw ReaderAPIError.insecureSource }
                 logger.info("download_start operation=\(operation, privacy: .public)")
                 let (file, response) = try await transfer(url: url, progress: progress)

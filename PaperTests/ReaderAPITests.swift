@@ -21,6 +21,33 @@ final class ReaderAPITests: XCTestCase {
         config.protocolClasses = [ReaderURLProtocol.self]
         return ReaderAPI(token: "test-secret", session: URLSession(configuration: config), minimumRequestInterval: 0)
     }
+    func testArticlesListFiltersChildrenAndRetainsOriginalIdentity() async throws {
+        ReaderURLProtocol.handle = { request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertTrue(query.contains(URLQueryItem(name: "category", value: "article")))
+            XCTAssertFalse(query.contains { $0.name == "withHtmlContent" })
+            return (200, [:], Data(#"{"results":[{"id":"original-article","category":"article","title":"An article"},{"id":"child","category":"article","parent_id":"original-article"},{"id":"book","category":"epub"}],"nextPageCursor":null}"#.utf8))
+        }
+        let result = try await api().listArticles { _ in }
+        XCTAssertEqual(result.map(\.id), ["original-article"], "Article conversion must keep the original Reader identity")
+    }
+    func testArticleContentUsesReadersHTML() async throws {
+        ReaderURLProtocol.handle = { request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertTrue(query.contains(URLQueryItem(name: "withHtmlContent", value: "true")))
+            XCTAssertTrue(query.contains(URLQueryItem(name: "id", value: "original-article")))
+            return (200, [:], Data(#"{"results":[{"id":"original-article","category":"article","html_content":"<p>The equation is E = mc².</p>"}],"nextPageCursor":null}"#.utf8))
+        }
+        let content = try await api().articleContent(id: "original-article")
+        XCTAssertEqual(content, "<p>The equation is E = mc².</p>")
+    }
+    func testArticleContentCannotUseAnUnrelatedRecord() async throws {
+        ReaderURLProtocol.handle = { _ in
+            (200, [:], Data(#"{"results":[{"id":"other","category":"article","html_content":"<p>Wrong item</p>"},{"id":"wanted","category":"article","parent_id":"other","html_content":"<p>Child item</p>"}]}"#.utf8))
+        }
+        do { _ = try await api().articleContent(id: "wanted"); XCTFail("Only the original parent article may supply content") }
+        catch { XCTAssertTrue(error is ReaderAPIError) }
+    }
     func testMalformedOptionalCoverDoesNotAbortValidPDFCatalog() async throws {
         ReaderURLProtocol.handle = { _ in
             (200, [:], Data(#"{"results":[{"id":"bad-cover","category":"pdf","title":"Keep this document","image_url":"http://["},{"id":"valid-cover","category":"pdf","image_url":"https://images.example/cover.jpg"}],"nextPageCursor":null}"#.utf8))

@@ -1,6 +1,20 @@
 import XCTest
 
 final class ReadingFlowTests: XCTestCase {
+    func testStartsDownloadedAndOffersGlobalMarkups() {
+        let app = XCUIApplication()
+        app.launchEnvironment = ["PAPER_UI_TEST": "1", "PAPER_TEST_RESET": "1"]
+        app.launch()
+        let downloaded = app.buttons["downloaded-tab"]
+        XCTAssertTrue(downloaded.waitForExistence(timeout: 10))
+        XCTAssertTrue(downloaded.isSelected, "Paper should start with downloaded reading material")
+        let markups = app.buttons["markups-tab"]
+        XCTAssertTrue(markups.exists, "Pending markup needs its own library-wide inbox")
+        if markups.exists {
+            markups.tap()
+            XCTAssertTrue(app.staticTexts["Your markup will appear here"].waitForExistence(timeout: 5))
+        }
+    }
     private func darkPixelsInWritingArea(_ screenshot: XCUIScreenshot) -> Int {
         let image = screenshot.image.cgImage!
         let width = image.width, height = image.height

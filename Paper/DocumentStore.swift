@@ -2,6 +2,8 @@ import Foundation
 import PDFKit
 
 struct StoredDocument: Codable, Identifiable, Equatable {
+    enum Format: String, Codable { case article, epub }
+
     let id: UUID
     let title: String
     var readerID: String? = nil
@@ -9,6 +11,8 @@ struct StoredDocument: Codable, Identifiable, Equatable {
     var summary: String? = nil
     var readerURL: URL? = nil
     var sourceURL: URL? = nil
+    var preparationWarning: String? = nil
+    var format: Format? = nil
 }
 
 enum LibraryError: LocalizedError {
@@ -118,4 +122,87 @@ extension DocumentStore {
         try FileManager.default.removeItem(at: removedRoot.appendingPathComponent(document.id.uuidString))
     }
     func reviewURL(for document: StoredDocument) -> URL { pdfURL(for: document).deletingLastPathComponent().appendingPathComponent("review.json") }
+}
+
+extension DocumentStore {
+    func directReadingSections(for document: StoredDocument) throws -> [DirectReadingSection] {
+        let folder = pdfURL(for: document).deletingLastPathComponent()
+        if document.format == .epub {
+            let publication = try JSONDecoder().decode(EPUBPublication.self, from: Data(contentsOf: folder.appendingPathComponent("publication.json")))
+            let resources = folder.appendingPathComponent("publication", isDirectory: true)
+            return publication.chapters.map { chapter in
+                DirectReadingSection(id: chapter.path, title: chapter.title, fileURL: resources.appendingPathComponent(chapter.path),
+                                     readAccessURL: resources, baseURL: nil)
+            }
+        }
+        let reading = folder.appendingPathComponent("reading.html")
+        if FileManager.default.fileExists(atPath: reading.path) {
+            return [DirectReadingSection(id: "article", title: document.title, fileURL: reading,
+                                         readAccessURL: folder, baseURL: nil)]
+        }
+        let source = folder.appendingPathComponent("source.html")
+        if FileManager.default.fileExists(atPath: source.path) {
+            return [DirectReadingSection(id: "article", title: document.title, fileURL: source,
+                                         readAccessURL: folder, baseURL: document.sourceURL)]
+        }
+        return []
+    }
+
+    func importEPUB(at source: URL, metadata: ReaderPDF? = nil) throws -> StoredDocument {
+        if let metadata, let retained = try documents().first(where: { $0.readerID == metadata.id }) { return retained }
+        var coordinationError: NSError?
+        var result: Result<StoredDocument, Error>?
+        NSFileCoordinator().coordinate(readingItemAt: source, options: [], error: &coordinationError) { readable in
+            result = Result {
+                let size = try readable.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
+                guard size <= EPUBArchive.maxArchiveBytes else { throw EPUBError.sizeLimit }
+                let original = try Data(contentsOf: readable, options: .mappedIfSafe)
+                let id = UUID()
+                let folder = root.appendingPathComponent(id.uuidString, isDirectory: true)
+                let resources = folder.appendingPathComponent("publication", isDirectory: true)
+                try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+                do {
+                    try EPUBArchive.extract(original, to: resources)
+                    let publication = try EPUBPublication.open(in: resources)
+                    let title = metadata?.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let document = StoredDocument(id: id,
+                        title: title.flatMap { $0.isEmpty ? nil : $0 } ?? publication.title ?? source.deletingPathExtension().lastPathComponent,
+                        readerID: metadata?.id, author: metadata?.author ?? publication.author, summary: metadata?.summary,
+                        readerURL: metadata?.readerURL, sourceURL: metadata?.sourceURL, format: .epub)
+                    try original.write(to: folder.appendingPathComponent("source.epub"), options: .atomic)
+                    try JSONEncoder().encode(publication).write(to: folder.appendingPathComponent("publication.json"), options: .atomic)
+                    try JSONEncoder().encode(document).write(to: folder.appendingPathComponent("document.json"), options: .atomic)
+                    return document
+                } catch {
+                    try? FileManager.default.removeItem(at: folder)
+                    throw error
+                }
+            }
+        }
+        if let coordinationError { throw coordinationError }
+        guard let result else { throw CocoaError(.fileReadUnknown) }
+        return try result.get()
+    }
+
+    func importDirectArticle(metadata: ReaderPDF, originalHTML: String, readingHTML: String, sourceText: String, missingFigures: Int) throws -> StoredDocument {
+        if let retained = try documents().first(where: { $0.readerID == metadata.id }) { return retained }
+        let title = metadata.title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let warning = missingFigures == 0 ? nil : "\(missingFigures) \(missingFigures == 1 ? "figure was" : "figures were") unavailable. Their positions are marked in the article."
+        let document = StoredDocument(id: UUID(), title: title.flatMap { $0.isEmpty ? nil : $0 } ?? "Untitled article",
+                                      readerID: metadata.id, author: metadata.author, summary: metadata.summary,
+                                      readerURL: metadata.readerURL, sourceURL: metadata.sourceURL,
+                                      preparationWarning: warning, format: .article)
+        let folder = pdfURL(for: document).deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        do {
+            try Data(originalHTML.utf8).write(to: folder.appendingPathComponent("source.html"), options: .atomic)
+            try Data(readingHTML.utf8).write(to: folder.appendingPathComponent("reading.html"), options: .atomic)
+            try Data(sourceText.utf8).write(to: folder.appendingPathComponent("source.txt"), options: .atomic)
+            try JSONEncoder().encode(document).write(to: folder.appendingPathComponent("document.json"), options: .atomic)
+            return document
+        } catch {
+            try? FileManager.default.removeItem(at: folder)
+            throw error
+        }
+    }
 }

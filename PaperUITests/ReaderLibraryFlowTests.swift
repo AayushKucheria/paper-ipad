@@ -5,8 +5,95 @@ import XCTest
         let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name; attachment.lifetime = .keepAlways; add(attachment)
     }
+    func testArticleReadingAndGlobalMarkupReview() async throws {
+        XCUIDevice.shared.orientation = .portrait
+        _ = try await URLSession.shared.data(from: URL(string: "http://localhost:18767/reset")!)
+        let app = XCUIApplication()
+        app.launchEnvironment = ["PAPER_UI_TEST": "1", "PAPER_TEST_RESET": "1", "PAPER_TEST_DIRECT_DRAW": "1", "PAPER_READER_BASE_URL": "http://localhost:18767/api/v3/"]
+        app.launch()
+        app.buttons["reader-connection"].tap()
+        let token = app.secureTextFields["reader-token"]
+        XCTAssertTrue(token.waitForExistence(timeout: 8)); token.tap(); token.typeText("ui-test-token")
+        app.buttons["connect-reader"].tap()
+        XCTAssertTrue(token.waitForNonExistence(timeout: 25))
+        app.buttons["library-tab"].tap()
+        app.buttons["format-filter"].tap()
+        XCTAssertTrue(app.buttons["articles-tab"].waitForExistence(timeout: 15)); app.buttons["articles-tab"].tap()
+        let prepare = app.buttons["prepare-article"]
+        XCTAssertTrue(prepare.waitForExistence(timeout: 20)); prepare.tap()
+        let open = app.buttons["open-article"]
+        XCTAssertTrue(open.waitForExistence(timeout: 35), app.debugDescription)
+        XCTAssertFalse(app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"].exists)
+        capture("Article ready for handwriting", app: app)
+        open.tap()
+        let close = app.buttons["direct-reader-done"]
+        XCTAssertTrue(close.waitForExistence(timeout: 25))
+        let page = app.webViews.firstMatch
+        XCTAssertTrue(page.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Writing helps us see")).firstMatch.waitForExistence(timeout: 15))
+        page.coordinate(withNormalizedOffset: CGVector(dx: 0.28, dy: 0.25)).press(forDuration: 0.05,
+            thenDragTo: page.coordinate(withNormalizedOffset: CGVector(dx: 0.57, dy: 0.29)))
+        capture("Drawing directly on an article", app: app)
+        let review = app.buttons["Review markup"]
+        let closeReview = app.navigationBars["Review your markup"].buttons["Done"]
+        let capturedInk = app.images["Saved handwriting and text"]
+        let noCapture = app.staticTexts["No capture for this region"]
+        review.tap()
+        XCTAssertTrue(capturedInk.waitForExistence(timeout: 10), app.debugDescription)
+        closeReview.tap()
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 12))
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "PAPER_TEST_RESET")
+        app.launchEnvironment.removeValue(forKey: "PAPER_TEST_DIRECT_DRAW")
+        app.launch()
+        XCTAssertTrue(open.waitForExistence(timeout: 15))
+        open.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Writing helps us see")).firstMatch.waitForExistence(timeout: 15))
+        let start = app.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.66))
+        let end = app.coordinate(withNormalizedOffset: CGVector(dx: 0.55, dy: 0.22))
+        start.press(forDuration: 0.05, thenDragTo: end)
+        app.buttons["Review markup"].tap()
+        XCTAssertTrue(noCapture.waitForExistence(timeout: 10), app.debugDescription)
+        closeReview.tap()
+        close.tap()
+        open.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 15))
+        XCTAssertTrue(page.waitForExistence(timeout: 15))
+        app.buttons["Review markup"].tap()
+        XCTAssertTrue(noCapture.waitForExistence(timeout: 10), app.debugDescription)
+        closeReview.tap()
+        end.press(forDuration: 0.05, thenDragTo: start)
+        end.press(forDuration: 0.05, thenDragTo: start)
+        app.buttons["Review markup"].tap()
+        XCTAssertTrue(capturedInk.waitForExistence(timeout: 10), app.debugDescription)
+        let add = app.buttons["add-review-draft"]
+        XCTAssertTrue(add.waitForExistence(timeout: 10)); add.tap()
+        let quote = app.textViews["review-quote"].firstMatch
+        XCTAssertTrue(quote.waitForExistence(timeout: 10)); quote.tap(); quote.typeText("Writing helps us see what we think.")
+        let note = app.textViews["review-note"].firstMatch
+        note.tap(); note.typeText("Keep room for questions.")
+        closeReview.tap()
+        XCTAssertTrue(close.waitForExistence(timeout: 10))
+        close.tap()
+        XCTAssertTrue(close.waitForNonExistence(timeout: 12))
+        app.buttons["markups-tab"].tap()
+        XCTAssertTrue(app.staticTexts["Thinking with a pencil"].waitForExistence(timeout: 15))
+        let send = app.buttons["Confirm and send to Reader"].firstMatch
+        if !send.isHittable { app.swipeUp() }
+        XCTAssertTrue(send.waitForExistence(timeout: 10))
+        capture("Global scrolling markup inbox", app: app)
+        send.tap()
+        XCTAssertTrue(send.waitForNonExistence(timeout: 15), app.debugDescription)
+        XCTAssertTrue(app.buttons["Open marked text"].exists)
+        let (data, _) = try await URLSession.shared.data(from: URL(string: "http://localhost:18767/metrics")!)
+        let counts = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Int])
+        XCTAssertEqual(counts["highlight_posts"], 1)
+        XCTAssertEqual(counts["pdf_requests"], 0, "Articles should use Reader HTML rather than fetch another PDF")
+    }
     func testAnalyzeReviewSendPersistAndRestoreDownload() async throws {
-        XCUIDevice.shared.orientation = .landscapeLeft
+        XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }
         _ = try await URLSession.shared.data(from: URL(string: "http://localhost:18767/reset")!)
         let app=XCUIApplication()
@@ -16,7 +103,12 @@ import XCTest
         let token=app.secureTextFields["reader-token"]
         XCTAssertTrue(token.waitForExistence(timeout:5));token.tap();token.typeText("ui-test-token")
         app.buttons["connect-reader"].tap()
+        XCTAssertTrue(token.waitForNonExistence(timeout: 25))
+        app.buttons["library-tab"].tap()
         XCTAssertTrue(app.buttons["download-guide"].waitForExistence(timeout:15));app.buttons["download-guide"].tap()
+        XCTAssertTrue(app.buttons["open-guide"].waitForExistence(timeout:25))
+        XCTAssertFalse(app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"].exists, "Downloading should leave the library visible")
+        app.buttons["open-guide"].tap()
         let close=app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"]
         XCTAssertTrue(close.waitForExistence(timeout:25))
         XCTAssertTrue(app.descendants(matching:.any).matching(identifier:"QLOverlayMarkupButtonAccessibilityIdentifier").firstMatch.waitForExistence(timeout:25))
@@ -27,11 +119,12 @@ import XCTest
         XCTAssertTrue(actions.waitForExistence(timeout:10),app.debugDescription)
         actions.tap();app.buttons["Review markup"].tap()
         XCTAssertTrue(app.buttons["analyze-markup"].waitForExistence(timeout:10))
-        capture("Landscape PDF and review",app:app)
+        capture("PDF and review",app:app)
         app.buttons["AI settings"].tap()
         let key=app.secureTextFields["anthropic-key"]
         XCTAssertTrue(key.waitForExistence(timeout:5));key.tap();key.typeText("fake-anthropic-key")
         app.buttons["save-anthropic-key"].tap()
+        app.buttons["All pages"].tap(); app.buttons["analysis-page-1"].tap()
         app.buttons["analyze-markup"].tap()
         let quote=app.textViews["review-quote"]
         XCTAssertTrue(quote.waitForExistence(timeout:20),app.debugDescription)
@@ -42,11 +135,15 @@ import XCTest
         let send=app.buttons["send-review"]
         if !send.isHittable { drafts.swipeUp() }
         send.tap()
+        let history = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sent and skipped")).firstMatch
+        XCTAssertTrue(history.waitForExistence(timeout:10)); history.tap()
         XCTAssertTrue(app.staticTexts["Sent to Reader"].waitForExistence(timeout:10),app.debugDescription)
         capture("Reviewed markup sent",app:app)
         app.buttons["Done"].firstMatch.tap()
         app.terminate();app.launchEnvironment.removeValue(forKey:"PAPER_TEST_RESET");app.launch()
         app.buttons["downloaded-tab"].tap();app.descendants(matching:.any).matching(identifier:"actions-guide").firstMatch.tap();app.buttons["Review markup"].tap()
+        let savedHistory = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", "Sent and skipped")).firstMatch
+        XCTAssertTrue(savedHistory.waitForExistence(timeout:10)); savedHistory.tap()
         XCTAssertTrue(app.staticTexts["Sent to Reader"].waitForExistence(timeout:10))
         XCTAssertFalse(app.buttons["send-review"].exists)
         app.buttons["Done"].firstMatch.tap()
@@ -74,6 +171,8 @@ import XCTest
         XCTAssertTrue(token.waitForExistence(timeout: 5))
         token.tap(); token.typeText("ui-test-token")
         app.buttons["connect-reader"].tap()
+        XCTAssertTrue(token.waitForNonExistence(timeout: 25))
+        app.buttons["library-tab"].tap()
         XCTAssertTrue(app.staticTexts["A field guide to slow reading"].waitForExistence(timeout: 20))
         XCTAssertTrue(app.staticTexts["Thinking on paper"].waitForExistence(timeout: 10), "All catalog pages must be shown")
         capture("Reader library", app: app)
@@ -84,6 +183,9 @@ import XCTest
         XCTAssertFalse(app.staticTexts["Thinking on paper"].exists)
         app.buttons["download-guide"].tap()
         capture("Downloading a PDF", app: app)
+        XCTAssertTrue(app.buttons["open-guide"].waitForExistence(timeout:25))
+        XCTAssertFalse(app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"].exists)
+        app.buttons["open-guide"].tap()
         let close = app.buttons["QLOverlayDoneButtonAccessibilityIdentifier"]
         XCTAssertTrue(close.waitForExistence(timeout: 20), app.debugDescription)
         let markup = app.descendants(matching: .any).matching(identifier: "QLOverlayMarkupButtonAccessibilityIdentifier").firstMatch
@@ -92,7 +194,7 @@ import XCTest
         close.tap()
         app.buttons["downloaded-tab"].tap()
         XCTAssertTrue(app.buttons["open-guide"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["Downloaded"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.buttons["downloaded-tab"].isSelected)
         capture("Downloaded library", app: app)
         app.terminate()
         app.launchEnvironment.removeValue(forKey: "PAPER_TEST_RESET")
@@ -110,4 +212,39 @@ import XCTest
         XCTAssertEqual(metrics["pdf_requests"], 1)
         XCTAssertEqual(metrics["pdf_authorization_headers"], 0)
     }
+
+    func testLibraryShelvesOverlapAndPersist() async throws {
+        _ = try await URLSession.shared.data(from: URL(string: "http://localhost:18767/reset")!)
+        let app = XCUIApplication()
+        app.launchEnvironment = ["PAPER_UI_TEST": "1", "PAPER_TEST_RESET": "1", "PAPER_READER_BASE_URL": "http://localhost:18767/api/v3/"]
+        app.launch()
+        app.buttons["reader-connection"].tap()
+        let token = app.secureTextFields["reader-token"]
+        XCTAssertTrue(token.waitForExistence(timeout: 8))
+        token.tap(); token.typeText("ui-test-token")
+        app.buttons["connect-reader"].tap()
+        XCTAssertTrue(token.waitForNonExistence(timeout: 25))
+        app.buttons["library-tab"].tap()
+        let download = app.buttons["download-guide"]
+        XCTAssertTrue(download.waitForExistence(timeout: 15))
+        download.tap()
+        let open = app.buttons["open-guide"]
+        XCTAssertTrue(open.waitForExistence(timeout: 25))
+        app.buttons["downloaded-tab"].tap()
+        app.buttons["shortlist-guide"].tap()
+        app.descendants(matching: .any).matching(identifier: "actions-guide").firstMatch.tap()
+        app.buttons["Mark as currently reading"].tap()
+        app.buttons["reading-tab"].tap()
+        XCTAssertTrue(open.exists)
+        app.buttons["shortlisted-tab"].tap()
+        XCTAssertTrue(open.exists)
+        app.terminate()
+        app.launchEnvironment.removeValue(forKey: "PAPER_TEST_RESET")
+        app.launch()
+        app.buttons["shortlisted-tab"].tap()
+        XCTAssertTrue(open.waitForExistence(timeout: 8))
+        app.buttons["reading-tab"].tap()
+        XCTAssertTrue(open.exists)
+    }
+
 }

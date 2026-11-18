@@ -6,7 +6,7 @@ import json, time, threading
 
 PORT = 18767
 BASE = f'http://localhost:{PORT}'
-metrics = {'catalog_requests': 0, 'pdf_requests': 0, 'pdf_authorization_headers': 0, 'analysis_requests': 0, 'highlight_posts': 0, 'incremental_requests': 0}
+metrics = {'catalog_requests': 0, 'pdf_requests': 0, 'pdf_authorization_headers': 0, 'analysis_requests': 0, 'highlight_posts': 0, 'incremental_requests': 0, 'article_requests': 0}
 highlights = []
 lock = threading.Lock()
 
@@ -54,6 +54,14 @@ class Handler(BaseHTTPRequestHandler):
             with lock: metrics['catalog_requests'] += 1
             if query.get('category') == ['highlight']:
                 return self.reply(200, {'results':highlights, 'nextPageCursor':None})
+            if query.get('category') == ['article'] or (query.get('id') == ['article']):
+                with lock: metrics['article_requests'] += 1
+                article = {'id':'article', 'title':'Thinking with a pencil', 'author':'Paper test library', 'summary':'An article for handwritten ideas.', 'category':'article', 'parent_id':None, 'url':'https://read.readwise.io/read/article', 'source_url':'https://example.com/thinking', 'saved_at':'2026-10-22T00:00:00Z', 'html_content':'<article><h1>Thinking with a pencil</h1><p>Writing helps us see what we think.</p><p>Leave room for questions and diagrams.</p></article>'}
+                article['html_content'] = article['html_content'].replace(
+                    '</article>',
+                    ''.join(f'<p>Fixture paragraph {index}. Keep reading for another writing exercise.</p>'
+                            for index in range(1, 31)) + '</article>')
+                return self.reply(200, {'results':[article], 'nextPageCursor':None})
             if query.get('updatedAfter'):
                 with lock: metrics['incremental_requests'] += 1
                 return self.reply(200, {'results':[], 'nextPageCursor':None})
@@ -74,7 +82,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(200, {'stop_reason':'end_turn', 'content':[{'type':'text', 'text':json.dumps({'items':[item]})}]})
         if self.path == '/api/v3/save/':
             if self.headers.get('Authorization') != 'Token ui-test-token': return self.reply(401, {})
-            if payload.get('parent_id') != 'guide' or payload.get('content') != 'A field guide to slow reading': return self.reply(400, {})
+            if (payload.get('parent_id'), payload.get('content')) not in [('guide', 'A field guide to slow reading'), ('article', 'Writing helps us see what we think.')]: return self.reply(400, {})
             with lock:
                 metrics['highlight_posts'] += 1
                 identifier = 'highlight-' + str(metrics['highlight_posts'])

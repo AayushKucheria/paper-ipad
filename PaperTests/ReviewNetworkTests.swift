@@ -24,6 +24,40 @@ final class ReviewNetworkTests:XCTestCase {
         truncated=true
         do{_=try await api.analyze([AnalysisPage(number:2,jpeg:Data([0]),sourceText:"")]);XCTFail("Truncated analysis must not become drafts")}catch{}
     }
+    func testHaikuChoicePersistsMeasuredUsageAndCost() async throws {
+        ReviewHTTPProtocol.handle = { req in
+            let body = req.httpBody ?? req.httpBodyStream.map { stream in
+                stream.open(); defer { stream.close() }; var bytes = [UInt8](repeating:0,count:65536); let count=stream.read(&bytes,maxLength:bytes.count); return Data(bytes.prefix(max(0,count)))
+            } ?? Data()
+            let json = try JSONSerialization.jsonObject(with:body) as! [String:Any]
+            XCTAssertEqual(json["model"] as? String,"claude-haiku-5-5")
+            return (200,try JSONSerialization.data(withJSONObject:["model":"claude-haiku-5-5","stop_reason":"end_turn","usage":["input_tokens":10000,"output_tokens":2000],"content":[["type":"text","text":"{\"items\":[]}"]]]))
+        }
+        let api = AnthropicMarkupAPI(key:"fake",model:"claude-haiku-5-5",session:session())
+        _ = try await api.analyze([AnalysisPage(number:1,jpeg:Data([0]),sourceText:"")])
+        let usage = await api.lastUsage()
+        XCTAssertEqual(usage?.inputTokens,10000)
+        XCTAssertEqual(usage?.outputTokens,2000)
+        XCTAssertEqual(try XCTUnwrap(usage?.estimatedDollars),0.002,accuracy:0.000001)
+        let service: any MarkupAnalyzing = api
+        let protocolUsage = await service.lastUsage()
+        XCTAssertEqual(protocolUsage,usage,"ReviewModel reads usage through the protocol, which must dispatch to the actor implementation")
+        let measured = try XCTUnwrap(usage)
+        XCTAssertEqual(measured.pricingVersion,"2026-10-22")
+        let encoded = try JSONEncoder().encode(measured)
+        let decoded = try JSONDecoder().decode(AnalysisUsage.self,from:encoded)
+        XCTAssertEqual(decoded.pricingVersion,"2026-10-22")
+        XCTAssertEqual(try XCTUnwrap(decoded.estimatedDollars),0.002,accuracy:0.000001)
+        var historical = try XCTUnwrap(JSONSerialization.jsonObject(with:encoded) as? [String:Any])
+        historical.removeValue(forKey:"pricingVersion")
+        let legacy = try JSONDecoder().decode(AnalysisUsage.self,from:JSONSerialization.data(withJSONObject:historical))
+        XCTAssertNil(legacy.pricingVersion)
+        XCTAssertNil(legacy.estimatedDollars,"Unversioned historical usage must not be silently priced with current rates")
+        XCTAssertEqual(legacy.inputTokens,10000)
+        historical["pricingVersion"] = "unknown-version"
+        let unknown = try JSONDecoder().decode(AnalysisUsage.self,from:JSONSerialization.data(withJSONObject:historical))
+        XCTAssertNil(unknown.estimatedDollars)
+    }
     func testAnthropicErrorsDoNotExposeKeyOrRawServiceBody() async throws {
         ReviewHTTPProtocol.handle={_ in(401,Data("fake-anthropic-key private-service-body".utf8))}
         do{_=try await AnthropicMarkupAPI(key:"fake-anthropic-key",session:session()).analyze([AnalysisPage(number:1,jpeg:Data([0]),sourceText:"")]);XCTFail("Expected failure")}

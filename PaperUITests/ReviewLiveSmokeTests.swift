@@ -2,6 +2,29 @@ import XCTest
 
 /// Opt-in: uses the actual iPad Keychain and Anthropic account; never sends a Reader highlight.
 @MainActor final class ReviewLiveSmokeTests:XCTestCase {
+    func testBrowseUpdatedPaperOnPhysicalIPad() throws {
+        guard ProcessInfo.processInfo.environment["PAPER_LIVE_BROWSE"] == "1" else { throw XCTSkip("Opt-in physical browse, no analysis or Reader writes") }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        defer { XCUIDevice.shared.orientation = .portrait }
+        let app = XCUIApplication(); app.launch()
+        XCTAssertTrue(app.buttons["downloaded-tab"].waitForExistence(timeout: 20))
+        app.buttons["downloaded-tab"].tap()
+        var attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "Physical updated Downloaded library"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["markups-tab"].tap()
+        let context = app.buttons["Review pages"].firstMatch
+        if context.waitForExistence(timeout: 25) {
+            attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "Physical global Markups inbox"; attachment.lifetime = .keepAlways; add(attachment)
+            context.tap()
+            XCTAssertTrue(app.buttons["analyze-markup"].waitForExistence(timeout: 15))
+            attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "Physical scrolling review and page thumbnails"; attachment.lifetime = .keepAlways; add(attachment)
+            app.buttons["Done"].firstMatch.tap()
+        }
+        app.buttons["Library actions"].tap(); app.buttons["Backups"].tap()
+        XCTAssertTrue(app.buttons["Choose backup folder"].waitForExistence(timeout: 10), app.debugDescription)
+        attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot()); attachment.name = "Physical backup setup"; attachment.lifetime = .keepAlways; add(attachment)
+        app.buttons["Done"].firstMatch.tap()
+        app.buttons["downloaded-tab"].tap()
+    }
     func testRefreshCoverMetadataOnPhysicalIPad() throws {
         guard ProcessInfo.processInfo.environment["PAPER_LIVE_REVIEW_ID"] != nil else {throw XCTSkip("Opt-in physical Reader refresh")}
         let app=XCUIApplication();app.launch()
