@@ -2,11 +2,11 @@
 """Local Reader API fixture for the real simulator flow. No real credentials/data."""
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
-import json, time, threading
+import json, time, threading, io, zipfile
 
 PORT = 18767
 BASE = f'http://localhost:{PORT}'
-metrics = {'catalog_requests': 0, 'pdf_requests': 0, 'pdf_authorization_headers': 0, 'analysis_requests': 0, 'highlight_posts': 0, 'incremental_requests': 0, 'article_requests': 0}
+metrics = {'catalog_requests': 0, 'pdf_requests': 0, 'pdf_authorization_headers': 0, 'analysis_requests': 0, 'highlight_posts': 0, 'incremental_requests': 0, 'article_requests': 0, 'epub_list_requests': 0, 'epub_file_requests': 0}
 highlights = []
 lock = threading.Lock()
 
@@ -22,6 +22,22 @@ def pdf_bytes():
     out += f'xref\n0 {len(objects)+1}\n0000000000 65535 f \n'.encode()
     out += b''.join(f'{offset:010} 00000 n \n'.encode() for offset in offsets[1:])
     return out + f'trailer\n<< /Size {len(objects)+1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n'.encode()
+
+def epub_bytes():
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, 'w') as z:
+        z.writestr(zipfile.ZipInfo('mimetype'), 'application/epub+zip')
+        z.writestr('META-INF/container.xml', '<?xml version="1.0"?><container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container"><rootfiles><rootfile full-path="OPS/book.opf" media-type="application/oebps-package+xml"/></rootfiles></container>')
+        z.writestr('OPS/book.opf', '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id"><metadata xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:identifier id="id">fixture-book</dc:identifier><dc:title>The fixture book</dc:title><dc:creator>Paper test library</dc:creator><dc:language>en</dc:language></metadata><manifest><item id="a" href="text/a.xhtml" media-type="application/xhtml+xml"/></manifest><spine><itemref idref="a"/></spine></package>')
+        z.writestr('OPS/text/a.xhtml', '<?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Chapter one</title></head><body><h1>Chapter one</h1><p>Epub fixture sentence for reading.</p></body></html>')
+    return out.getvalue()
+
+def epub_document(identifier, title, raw=True, source_url=''):
+    # Shapes seen on real uploaded EPUBs: empty source_url/author/image_url, null title for unreadable uploads.
+    return {'id': identifier, 'title': title, 'author': 'Paper test library' if title else '', 'summary': 'A book for handwritten notes.' if title else 'Your file was uploaded but we were unable to load and read it.',
+        'category': 'epub', 'parent_id': None, 'url': f'https://read.readwise.io/read/{identifier}', 'source_url': source_url,
+        'image_url': '', 'saved_at': '2026-10-21T00:00:00Z', 'reading_progress': 0,
+        'raw_source_url': f'{BASE}/files/{identifier}.epub' if raw else ''}
 
 def document(identifier, title, author=None, summary=None, available=True):
     return {'id': identifier, 'title': title, 'author': author, 'summary': summary,
@@ -43,6 +59,9 @@ class Handler(BaseHTTPRequestHandler):
             with lock:
                 for key in metrics: metrics[key] = 0
             return self.reply(200, metrics)
+        if parsed.path.startswith('/files/') and parsed.path.endswith('.epub'):
+            with lock: metrics['epub_file_requests'] += 1
+            return self.reply(200, epub_bytes(), 'application/epub+zip')
         if parsed.path.startswith('/files/'):
             with lock:
                 metrics['pdf_requests'] += 1
@@ -54,6 +73,9 @@ class Handler(BaseHTTPRequestHandler):
             with lock: metrics['catalog_requests'] += 1
             if query.get('category') == ['highlight']:
                 return self.reply(200, {'results':highlights, 'nextPageCursor':None})
+            if query.get('category') == ['epub'] or query.get('id') == ['book']:
+                with lock: metrics['epub_list_requests'] += 1
+                return self.reply(200, {'count':2, 'results':[epub_document('broken', None, raw=False), epub_document('book', 'The fixture book', source_url='private://read/book')], 'nextPageCursor':None})
             if query.get('category') == ['article'] or (query.get('id') == ['article']):
                 with lock: metrics['article_requests'] += 1
                 article = {'id':'article', 'title':'Thinking with a pencil', 'author':'Paper test library', 'summary':'An article for handwritten ideas.', 'category':'article', 'parent_id':None, 'url':'https://read.readwise.io/read/article', 'source_url':'https://example.com/thinking', 'saved_at':'2026-10-22T00:00:00Z', 'html_content':'<article><h1>Thinking with a pencil</h1><p>Writing helps us see what we think.</p><p>Leave room for questions and diagrams.</p></article>'}

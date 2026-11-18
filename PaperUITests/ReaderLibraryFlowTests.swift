@@ -92,6 +92,42 @@ import XCTest
         XCTAssertEqual(counts["highlight_posts"], 1)
         XCTAssertEqual(counts["pdf_requests"], 0, "Articles should use Reader HTML rather than fetch another PDF")
     }
+    func testEpubAppearsInAllAndBooksAndOpensInDirectReader() async throws {
+        XCUIDevice.shared.orientation = .portrait
+        _ = try await URLSession.shared.data(from: URL(string: "http://localhost:18767/reset")!)
+        let app = XCUIApplication()
+        app.launchEnvironment = ["PAPER_UI_TEST": "1", "PAPER_TEST_RESET": "1", "PAPER_READER_BASE_URL": "http://localhost:18767/api/v3/"]
+        app.launch()
+        app.buttons["reader-connection"].tap()
+        let token = app.secureTextFields["reader-token"]
+        XCTAssertTrue(token.waitForExistence(timeout: 8)); token.tap(); token.typeText("ui-test-token")
+        app.buttons["connect-reader"].tap()
+        XCTAssertTrue(token.waitForNonExistence(timeout: 25))
+        app.buttons["library-tab"].tap()
+        // All formats lists the book, alongside PDFs.
+        XCTAssertTrue(app.staticTexts["The fixture book"].waitForExistence(timeout: 30), app.debugDescription)
+        XCTAssertTrue(app.staticTexts["A field guide to slow reading"].exists)
+        // Books filter keeps it and hides PDFs.
+        app.buttons["format-filter"].tap()
+        app.buttons["format-epub"].tap()
+        XCTAssertTrue(app.staticTexts["The fixture book"].waitForExistence(timeout: 10))
+        XCTAssertFalse(app.staticTexts["A field guide to slow reading"].exists)
+        // A book Reader could not parse has no source: it must not offer a download that cannot work.
+        XCTAssertTrue(app.buttons["unavailable-broken"].exists); XCTAssertFalse(app.buttons["prepare-broken"].exists)
+        let prepare = app.buttons["prepare-book"]
+        XCTAssertTrue(prepare.waitForExistence(timeout: 10)); prepare.tap()
+        let open = app.buttons["open-book"]
+        XCTAssertTrue(open.waitForExistence(timeout: 35), app.debugDescription)
+        open.tap()
+        let close = app.buttons["direct-reader-done"]
+        XCTAssertTrue(close.waitForExistence(timeout: 25), app.debugDescription)
+        XCTAssertTrue(app.staticTexts.containing(NSPredicate(format: "label CONTAINS %@", "Epub fixture sentence")).firstMatch.waitForExistence(timeout: 20), app.debugDescription)
+        close.tap()
+        let (data, _) = try await URLSession.shared.data(from: URL(string: "http://localhost:18767/metrics")!)
+        let counts = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Int])
+        XCTAssertGreaterThanOrEqual(counts["epub_list_requests"] ?? 0, 1)
+        XCTAssertEqual(counts["epub_file_requests"], 1)
+    }
     func testAnalyzeReviewSendPersistAndRestoreDownload() async throws {
         XCUIDevice.shared.orientation = .portrait
         defer { XCUIDevice.shared.orientation = .portrait }

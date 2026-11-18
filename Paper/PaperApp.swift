@@ -478,7 +478,7 @@ struct ReadingView: View {
                 bookmark(item.id)
                 if library.activeDownloadID == item.id {
                     ProgressView().frame(minWidth: 44, minHeight: 44)
-                } else if kind != .pdf || item.canDownload {
+                } else if kind == .article || item.canDownload {
                     Button(library.removedDocument(for: item) != nil ? "Restore" : library.downloadErrorID == item.id ? "Retry" : "Download") {
                         Task { await retrieve(entry, thenOpen: false) }
                     }.buttonStyle(.bordered).disabled(library.activeDownloadID != nil)

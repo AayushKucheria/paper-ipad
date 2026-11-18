@@ -46,8 +46,9 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
         title = try c.decodeIfPresent(String.self, forKey: .title)
         author = try c.decodeIfPresent(String.self, forKey: .author)
         summary = try c.decodeIfPresent(String.self, forKey: .summary)
-        readerURL = try c.decodeIfPresent(URL.self, forKey: .readerURL)
-        sourceURL = try c.decodeIfPresent(URL.self, forKey: .sourceURL)
+        // Reader sends "" for some uploads (e.g. EPUBs it could not parse); URL's decoder throws on that and would reject the whole page.
+        readerURL = Self.lenientURL(c, .readerURL)
+        sourceURL = Self.lenientURL(c, .sourceURL)
         savedAt = try c.decodeIfPresent(String.self, forKey: .savedAt)
         imageURL = try? c.decodeIfPresent(URL.self, forKey: .imageURL)
         readingTime = try? c.decodeIfPresent(String.self, forKey: .readingTime)
@@ -56,6 +57,11 @@ struct ReaderPDF: Codable, Equatable, Identifiable, Sendable {
         if c.contains(.rawSource) {
             hasDownload = !(try c.decodeIfPresent(String.self, forKey: .rawSource) ?? "").isEmpty
         } else { hasDownload = try c.decodeIfPresent(Bool.self, forKey: .hasDownload) ?? true }
+    }
+    private static func lenientURL(_ c: KeyedDecodingContainer<CodingKeys>, _ key: CodingKeys) -> URL? {
+        guard let raw = try? c.decodeIfPresent(String.self, forKey: key) else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : URL(string: trimmed)
     }
     func encode(to encoder: Encoder) throws {
         var c = encoder.container(keyedBy: CodingKeys.self)
@@ -123,7 +129,23 @@ private struct ReaderRecord: Decodable {
         pdf = decodedPDF
     }
 }
-private struct ReaderPage: Decodable { let results: [ReaderRecord]; let nextPageCursor: String? }
+private struct ReaderPage: Decodable {
+    let results: [ReaderRecord]; let nextPageCursor: String?; let skipped: Int
+    private enum CodingKeys: String, CodingKey { case results, nextPageCursor }
+    private struct Skip: Decodable {}
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        nextPageCursor = try c.decodeIfPresent(String.self, forKey: .nextPageCursor)
+        var list = try c.nestedUnkeyedContainer(forKey: .results)
+        var records: [ReaderRecord] = [], bad = 0
+        // A single odd record must not hide the rest of the library.
+        while !list.isAtEnd {
+            if let record = try? list.decode(ReaderRecord.self) { records.append(record) }
+            else { bad += 1; _ = try? list.decode(Skip.self) }
+        }
+        results = records; skipped = bad
+    }
+}
 
 /// Restrict redirects before Foundation can forward a credential or follow an insecure URL.
 private final class ReaderTransferDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
@@ -205,6 +227,7 @@ actor ReaderAPI: ReaderServing {
                 if category == "epub" { query.append(URLQueryItem(name: "withRawSourceUrl", value: "true")) }
                 if let cursor { query.append(URLQueryItem(name: "pageCursor", value: cursor)) }
                 let page = try await fetchPage(query: query)
+                if page.skipped > 0 { logger.error("reading_catalog_skipped operation=\(operation, privacy: .public) category=\(category, privacy: .public) records=\(page.skipped)") }
                 for record in page.results where record.category == category && record.parentID == nil {
                     if ids.insert(record.pdf.id).inserted { result.append(record.pdf) }
                 }
@@ -214,7 +237,7 @@ actor ReaderAPI: ReaderServing {
                 if let cursor, !cursors.insert(cursor).inserted { throw ReaderAPIError.paginationLoop }
             } while cursor != nil
             return result
-        } catch { logger.error("reading_catalog_failure operation=\(operation, privacy: .public) elapsed=\(Date().timeIntervalSince(started))"); throw safe(error) }
+        } catch { logger.error("reading_catalog_failure operation=\(operation, privacy: .public) category=\(category, privacy: .public) kind=\(Self.kind(of: error), privacy: .public) elapsed=\(Date().timeIntervalSince(started))"); throw safe(error) }
     }
     func articleContent(id: String) async throws -> String {
         do {
@@ -310,6 +333,14 @@ actor ReaderAPI: ReaderServing {
     private func pause(_ seconds: TimeInterval) async throws {
         try Task.checkCancellation()
         if seconds > 0 { try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000)) }
+    }
+    nonisolated static func kind(of error: Error) -> String {
+        switch error {
+        case let known as ReaderAPIError: return String(describing: known)
+        case is CancellationError: return "cancelled"
+        case let url as URLError: return "urlError\(url.code.rawValue)"
+        default: return "other"
+        }
     }
     private func safe(_ error: Error) -> Error {
         if error is CancellationError { return error }

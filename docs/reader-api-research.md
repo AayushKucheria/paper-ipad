@@ -34,3 +34,9 @@ The iPad's existing Documents/Library was backed up successfully after a transie
 - [Reader API](https://readwise.io/reader_api)
 - [Reader PDF FAQ](https://docs.readwise.io/reader/docs/faqs/pdfs)
 - [Apple PDFDocument](https://developer.apple.com/documentation/pdfkit/pdfdocument)
+
+## EPUB catalog (18 Nov 2026)
+
+- `GET /api/v3/list/?category=epub&withRawSourceUrl=true` is documented (`category` accepts `epub`; `withRawSourceUrl` adds `raw_source_url`, an S3 link valid for one hour, empty for non-distributable files). Pagination uses `nextPageCursor`/`pageCursor`; limit 1 to 100; 20 requests per minute.
+- Observed EPUB record shapes: `source_url` is `""` for uploads Reader could not parse and `private://read/<id>` otherwise; `author` and `image_url` can be `""`; `title` can be null.
+- Cause of the empty Books shelf: Swift's `URL` decoder throws on `""`, so one unparseable upload failed the whole page as "incomplete library response" and `reader-books.json` was never written. URL fields now decode leniently and a single undecodable record is skipped (logged as `reading_catalog_skipped`) instead of failing the page. Failures log `kind=<ReaderAPIError case>` without token or content.

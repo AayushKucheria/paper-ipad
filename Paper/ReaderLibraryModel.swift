@@ -70,6 +70,9 @@ import OSLog
         guard !started else { return }
         started = true
         if connected && (lastSynced == nil || Date().timeIntervalSince(lastSynced!) > 900) { await refresh() }
+        // Books and articles also refresh at launch, not only when the Library shelf is opened.
+        if connected, booksLastSynced.map({ Date().timeIntervalSince($0) > 900 }) ?? true { await refreshBooks() }
+        if connected, articlesLastSynced.map({ Date().timeIntervalSince($0) > 900 }) ?? true { await refreshArticles() }
     }
     func connect(token: String) async -> Bool {
         let clean = token.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -128,7 +131,10 @@ import OSLog
             let date = Date()
             try articleCatalog.save(records, syncedAt: date)
             articles = Self.sorted(records); articlesLastSynced = date
-        } catch { articleError = error.localizedDescription }
+        } catch {
+            logger.error("articles_refresh_failure kind=\(ReaderAPI.kind(of: error), privacy: .public)")
+            articleError = error.localizedDescription
+        }
     }
     func refreshBooks() async {
         guard !isRefreshingBooks, let api else { return }
@@ -140,7 +146,10 @@ import OSLog
             let date = Date()
             try bookCatalog.save(records, syncedAt: date)
             books = Self.sorted(records); booksLastSynced = date
-        } catch { booksError = error.localizedDescription }
+        } catch {
+            logger.error("books_refresh_failure kind=\(ReaderAPI.kind(of: error), privacy: .public)")
+            booksError = error.localizedDescription
+        }
     }
     func prepareBook(_ book: ReaderPDF) async -> StoredDocument? {
         reloadDownloads()
