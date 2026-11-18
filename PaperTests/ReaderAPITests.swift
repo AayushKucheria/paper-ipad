@@ -64,7 +64,7 @@ final class ReaderAPITests: XCTestCase {
     }
     func testOneUndecodableRecordDoesNotDropTheRestOfAPage() async throws {
         ReaderURLProtocol.handle = { _ in
-            (200, [:], Data(#"{"results":[{"id":"a","category":"epub"},{"id":42,"category":"epub"},{"category":"epub"},{"id":"b","category":"epub"}],"nextPageCursor":null}"#.utf8))
+            (200, [:], Data(#"{"results":[{"id":"a","category":"epub"},{"id":42,"category":"epub"},{"category":"epub"},null,"text",7,{"id":"b","category":"epub"}],"nextPageCursor":null}"#.utf8))
         }
         let books = try await api().listBooks { _ in }
         XCTAssertEqual(books.map(\.id), ["a", "b"])

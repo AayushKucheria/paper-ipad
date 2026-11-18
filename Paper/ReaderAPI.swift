@@ -132,7 +132,8 @@ private struct ReaderRecord: Decodable {
 private struct ReaderPage: Decodable {
     let results: [ReaderRecord]; let nextPageCursor: String?; let skipped: Int
     private enum CodingKeys: String, CodingKey { case results, nextPageCursor }
-    private struct Skip: Decodable {}
+    // Accepts any JSON value so the unkeyed container always advances past a bad record (even null).
+    private struct Skip: Decodable { init(from decoder: Decoder) {} }
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         nextPageCursor = try c.decodeIfPresent(String.self, forKey: .nextPageCursor)
