@@ -2,34 +2,24 @@
 
 ## In progress
 
-- Paper recovered through SideStore. User imported the retained 22 October Paper.ipa with Customize AppID enabled and Append Team ID unchecked. Original bundle ID `com.aayush.paper.reader` and the original signing team retained. Device launch succeeded; all 35 Documents hashes match the pre-migration manifest.
-- Verify a subsequent SideStore refresh and background renewal. Until verified, manually refresh every few days using Wi-Fi and LocalDevVPN. Mac can be off. Check the current expiry in SideStore; no exact new profile expiry was measured.
-- Verify Reader and Anthropic Keychain access after migration without exposing credentials or sending an unconfirmed highlight.
+- Verify Paper’s next SideStore refresh and background renewal. Until proven, manually refresh every few days with Wi-Fi and LocalDevVPN; the Mac can be off. Check expiry in SideStore. Exact new profile expiry was not measured.
+- Verify Reader and Anthropic Keychain access after SideStore migration, without exposing credentials or sending an unconfirmed highlight.
 
 ## Known issues / loose ends
 
-- Pre-existing feature edits and untracked article/backup/markup files remain in the working tree; they were present before this recovery session and are excluded from its commit. Earlier 22 October notes report 57 passing unit tests and five UI flows; no code tests were rerun for this signing-only recovery.
-- Real Reader passage matching, original PDF placement and downstream Readwise retrieval still need a user-confirmed end-to-end check. Sending remains manual. Native ink/image upload is not promised.
+- Public `main` is the PDF app plus adoption docs and demo assets. The owner checkout has ongoing article, backup, markup and EPUB/direct-reading work; those edits are unpublished and were not changed or committed during public preparation. Do not infer the public app supports them from local October notes.
+- Real Reader passage matching, original PDF placement and downstream Readwise retrieval still need a user-confirmed end-to-end check. Sending remains manual; native ink/image upload is not promised.
 - User still needs to choose an in-app Files backup destination. Provider upload is separate from local checksum verification.
-- Palm strokes, older Files imports lacking Reader association, representative physics-article rendering, broader accessibility/interruption/performance coverage and 17 PDFs without download sources remain open. EPUB support is deferred.
-- Sonnet remains the analysis default; Haiku is selectable. Existing small-sample cost comparisons do not establish equal quality.
+- Palm strokes, older Files imports lacking Reader association, broader accessibility/interruption/performance checks and 17 PDFs without download sources remain open.
+- Existing clones contain old private history. Synchronize with cleaned public main; never merge the archived history back. Owner checkout main was aligned without overwriting existing source files and has a local pre-push guard against reintroducing historical private data. It retains uncommitted personal configuration and feature changes; review these before publishing.
 
-Recovery backup: `~/Documents/Paper Backups/2026-11-18-213214/before` with sibling `library-sha256.json`. Post-install copy: `~/Documents/Paper Backups/2026-11-18-sidestore-verification`. All 35 files matched before launch. Earlier October backups remain retained. Prepared IPA: `~/Documents/Paper Backups/SideStore Setup/Paper.ipa`.
+## Recovery and release evidence
 
-The previous profile expired 27 October 22:03:04 UTC. Xcode renewal stopped on missing cached profiles; a normal build failed with No Accounts/no matching profile. Official iloader 2.4.1 was installed in /Applications; user completed SideStore 0.7.0 setup and certificate replacement. Do not uninstall Paper. Future Xcode installs must preserve identity and coordinate signing with SideStore.
+- SideStore migration retained original bundle/signing identity. All 35 Documents files matched their pre-migration SHA-256 hashes; device launch succeeded. Never uninstall Paper. Backups: `~/Documents/Paper Backups/2026-11-18-213214/before` and `~/Documents/Paper Backups/2026-11-18-sidestore-verification`; manifest is beside `before`. Prepared retained-build IPA: `~/Documents/Paper Backups/SideStore Setup/Paper.ipa`.
+- Repository is public at https://github.com/AayushKucheria/paper-ipad . The previous repository remains a private archive because GitHub retained old commit objects after history rewriting. The replacement was cloned without authentication and scanned: 112 historical blobs had no targeted private identifiers, owner paths or embedded document images; Gitleaks reported zero secret matches. No claim is made about undiscovered private data. Original-history bundle and release report remain outside the repo.
+- README explains sideloading. Device scripts accept adopter team/device/bundle configuration. The MIT license and agent adoption guide remain intact. Published screenshots and the 23-second MP4/animated preview use synthetic documents; provenance is in docs/images/README.md. Published MP4 was verified byte for byte.
+- History cleanup introduced three unquoted Xcode team placeholders; ee9315e corrected them. Project lint/discovery, fresh build, all 34 signed simulator unit tests, screenshot capture and demo-recording UI flows passed after the fix. No new adopter device/live-account test was run. Capture servers are stopped; the dedicated capture simulator is shut down.
 
 ## Next logical step
 
 Verify Paper’s next SideStore refresh and preserved Reader/Anthropic access; continue manual refreshes until background renewal is proven.
-
-
-## Public adoption preparation — 18 November
-
-Prepared in an isolated full clone, preserving owner working changes. README includes source installation and SideStore renewal; scripts accept PAPER_BUNDLE_ID. Replaced embedded document thumbnail/library metadata in white-library prototype with synthetic examples. Thirty-four signed simulator unit tests passed; missing script configuration fails before device access. No new adopter device/live-account test or shareable product demo was produced.
-
-User authorized history cleanup and public visibility. Historical device identifiers, owner paths and embedded preview/library metadata were removed; all 111 remaining historical blobs passed the targeted privacy check, and Gitleaks 8.30.1 reported zero secret findings. A verified original-history bundle and full private release report are retained outside this repository. History has new commit IDs: existing clones must synchronize with cleaned main rather than merge old history back. Keep owner working files and local configuration backed up during synchronization.
-
-
-## README screenshots — 18 November
-
-Public README now includes two real simulator screenshots with synthetic data: Reader library and native PDF Markup. Provenance is in docs/images/README.md. A temporary capture UI flow passed. Post-history-cleanup validation caught three invalid unquoted team placeholders in the Xcode project; corrected to empty quoted strings in ee9315e. Project lint/discovery, fresh simulator build, screenshot UI capture and all 34 signed unit tests now pass after that fix. No personal iPad data or unpublished local feature work was used. A subsequent 23-second simulator demo was recorded: docs/demo.mp4, with docs/images/demo.gif as the inline README preview. Its recording UI flow passed; all content is synthetic.
