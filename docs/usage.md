@@ -48,19 +48,7 @@ The ignored `.env` on the Mac is a development configuration file; it is never b
 
 ## Signing and updates
 
-The current free Personal Team profile expires **28 October 2026 at 00:03 Helsinki time**. Apple limits free development profiles to seven days. The paid Apple Developer Program is an alternative for longer-lived distribution; it requires separate enrollment.
-
-Update over the existing app. Keep the iPad unlocked and finish any Markup edits first. The update script backs up Documents, checks signing identity, installs in place, and verifies saved file hashes.
-
-Free renewal options researched on 21 October 2026:
-
-| Option | Renewal requirements |
-| --- | --- |
-| Existing Mac update script | Reconnect and renew the current installation before expiry |
-| [SideStore](https://docs.sidestore.io/docs/faq) | Initial computer setup, then on-device background renewal using its local VPN; three installed apps including SideStore with a free account |
-| [AltStore Classic](https://faq.altstore.io/altstore-classic/your-altstore) | Background renewal through a reachable Mac running AltServer |
-
-SideStore and AltStore still use seven-day development profiles. SideStore is a candidate for reducing renewal effort; migration of Paper's app identity, local data and Keychain access remains untested. TestFlight requires [Developer Program membership](https://developer.apple.com/programs/whats-included/) and [builds expire after 90 days](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/). [TrollStore's supported versions](https://github.com/opa334/TrollStore) end at iPadOS 17.0; this app requires iPadOS 18+.
+See the [README renewal guide](../README.md#install-on-your-ipad-and-keep-it-working) for current Xcode, SideStore and other distribution choices. Update over the existing app with the same bundle/signing identity, back up first, and never uninstall a library you want to preserve. SideStore migration preserved the original installation’s documents and launch; credential continuity and background refresh remain unverified.
 
 ## Known limitations
 

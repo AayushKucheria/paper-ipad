@@ -31,7 +31,7 @@ xcodebuild test -project Paper.xcodeproj -scheme Paper \
   -derivedDataPath build
 ```
 
-Last run: 34 unit tests, 0 failures (21 Oct 2026). Simulator review/send/restore and native Markup persistence flows passed; physical Anthropic analysis and 717-PDF full refresh passed.
+Latest clean-clone check: 34 signed unit tests, 0 failures (18 Nov 2026), iPad Air 11-inch (M4), iOS 27.0. Historical simulator review/send/restore and native Markup persistence flows passed; physical Anthropic analysis and 717-PDF full refresh passed in October. Those UI/live flows were not rerun for public preparation.
 
 ## Build and install on the iPad
 

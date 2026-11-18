@@ -5,7 +5,7 @@ import argparse, os, datetime, hashlib, json, pathlib, plistlib, shutil, subproc
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 DEVICE = os.environ.get('PAPER_DEVICE_UDID', '')
 TEAM = os.environ.get('PAPER_TEAM_ID', '')
-BUNDLE = 'com.aayush.paper.reader'
+BUNDLE = os.environ.get('PAPER_BUNDLE_ID', 'com.aayush.paper.reader')
 APP = ROOT / 'build-device/Build/Products/Debug-iphoneos/Paper.app'
 
 def run(*args, **kwargs):

@@ -17,7 +17,7 @@ Start by inspecting the adopter's project, platform, storage and signing setup. 
 
 ## Configuration and integration
 
-Use the adopter's Reader token and optional Anthropic key through the in-app screens. Never bundle `.env`, a token, a signed PDF URL or a private library. `.env.example` documents the optional development provisioning script; the application does not read it. `PAPER_DEVICE_UDID` and `PAPER_TEAM_ID` must be exported for device update scripts. Set signing in Xcode and use your own team. Do not run update/provisioning scripts while merely evaluating this repository.
+Use the adopter's Reader token and optional Anthropic key through the in-app screens. Never bundle `.env`, a token, a signed PDF URL or a private library. `.env.example` documents the optional development provisioning script; the application does not read it. `PAPER_DEVICE_UDID` and `PAPER_TEAM_ID` must be exported for device update scripts. Export `PAPER_BUNDLE_ID` too if you changed the app identifier (default: `com.aayush.paper.reader`). Set signing in Xcode and use your own team. Do not run update/provisioning scripts while merely evaluating this repository.
 
 `Documents/Library/{UUID}/` stores immutable `source.pdf`, edited `reading.pdf`, `document.json` and optional `review.json`. `Documents/reader-catalog.json` holds catalog metadata. Recently Removed preserves the whole document folder. Preserve these semantics when extracting storage or changing paths. Keep Keychain service identity stable for an existing install; changing bundle/signing identity can strand data. Never uninstall an existing library to test an update.
 
@@ -25,4 +25,20 @@ For a PDF viewer extraction, take the native wrapper and storage model first, th
 
 ## Verify
 
-Read [AGENTS.md](AGENTS.md) before running tests. Discover an available iPad simulator with `xcrun simctl list devices available`; run the documented signed unit tests with that destination. `scripts/reader-test-server.py` supports controlled local service tests. Confirm download, Markup save/reopen, draft persistence, removal and restore with synthetic PDFs. Use test accounts and explicit authorization before paid analysis or creating Reader highlights. Report local tests separately from physical-device behavior and live-service delivery; those were not verified during this preparation.
+Read [AGENTS.md](AGENTS.md) before running tests. Discover an available iPad simulator with `xcrun simctl list devices available`; run the documented signed unit tests with that destination. `scripts/reader-test-server.py` supports controlled local service tests. Confirm download, Markup save/reopen, draft persistence, removal and restore with synthetic PDFs. Use test accounts and explicit authorization before paid analysis or creating Reader highlights. Report local tests separately from physical-device behavior and live-service delivery; physical installation on a new adopter account and live-service delivery were not verified during this preparation.
+
+## Package for SideStore
+
+Use your own signing team and bundle identifier in Xcode first. Build for a connected iPad with `xcodebuild build -project Paper.xcodeproj -scheme Paper -destination 'id=<your-device-udid>' -derivedDataPath build-device -allowProvisioningUpdates`. This needs Apple Account access and has not been tested for a fresh adopter account. The existing project already contains generated targets; XcodeGen is only needed after editing `project.yml`.
+
+From the repository root, package the resulting app:
+
+```sh
+mkdir -p build-device/sideload/Payload
+ditto build-device/Build/Products/Debug-iphoneos/Paper.app build-device/sideload/Payload/Paper.app
+ditto -c -k --sequesterRsrc --keepParent build-device/sideload/Payload build-device/Paper.ipa
+```
+
+Import `build-device/Paper.ipa` through SideStore. Keep signing identity and bundle ID stable when updating; see the README’s renewal section. The package commands were exercised against the retained owner build during recovery; new device builds require the adopter’s account and hardware. Device backups, signed IPAs and provisioning files stay outside version control.
+
+If you fork with a different bundle ID, review the Keychain service defaults in `Paper/ReaderCredentials.swift` and the Anthropic store before choosing credential identity. Preserve these for an existing installation. Device scripts accept your bundle ID through `PAPER_BUNDLE_ID`; `.env` is not loaded for shell configuration.

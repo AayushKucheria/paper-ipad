@@ -18,7 +18,7 @@ try:
         stream.write(key)
     subprocess.run(['xcrun','devicectl','device','copy','to','--device',device,
         '--source',filename,'--destination','tmp/anthropic-key.txt','--domain-type','appDataContainer',
-        '--domain-identifier','com.aayush.paper.reader'],check=True)
+        '--domain-identifier',os.environ.get('PAPER_BUNDLE_ID', 'com.aayush.paper.reader')],check=True)
     print('Copied the one-time credential. Relaunch Paper to move it into Keychain and delete the import file.')
 finally:
     pathlib.Path(filename).unlink(missing_ok=True)

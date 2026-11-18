@@ -17,3 +17,9 @@ reader-token*
 
 __pycache__/
 *.pyc
+
+# Signed builds and device provisioning are local artifacts.
+*.ipa
+*.mobileprovision
+*.p12
+*.p8

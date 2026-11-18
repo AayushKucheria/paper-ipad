@@ -10,7 +10,7 @@ You need a Mac with Xcode, an iPad running iPadOS 18+, and your own Apple signin
 2. Choose an iPad simulator or your own connected iPad and run the Paper scheme. Hardware needs Developer Mode.
 3. Connect Reader in the app; enter the optional Anthropic key in AI settings. Keys stay in separate Keychain services. Check that library entries load, then download a PDF and reopen its saved Markup.
 
-Project/scheme discovery was checked on 16 November 2026. Running the app and simulator tests in this preparation was blocked by a local CoreSimulator/Xcode version mismatch; the steps above still need verification on a compatible Mac. No account or hardware operation was performed.
+Verified from a clean clone on 18 November 2026: Xcode discovered all three targets and the Paper scheme; all 34 signed unit tests passed on the iPad Air 11-inch (M4), iOS 27.0 simulator. A new adopter’s physical installation and live Reader/Anthropic accounts still need verification.
 
 The [usage guide](docs/usage.md) describes library, review, delivery and storage behavior, with dated research and historical pricing estimates. Check your provider's current pricing. Analysis sends selected page images and source text to Anthropic; sending a reviewed note to Reader is a separate manual action. Real Reader passage matching and downstream placement remain unverified.
 
@@ -22,6 +22,21 @@ The PDF storage, native Markup wrapper, Reader client and review workflow can be
 
 Developer commands and data-preservation rules live in [AGENTS.md](AGENTS.md). The original code is available under the [MIT License](LICENSE). Third-party dependencies and assets retain their own terms.
 
-## Personal installation renewal
+## Install on your iPad and keep it working
 
-The original installation was recovered through SideStore on 18 November 2026, preserving all 35 Documents files and successful launch. Free signing still needs renewal every seven days. Refresh with Wi-Fi and LocalDevVPN connected; the Mac can be off. Background renewal and credential continuity remain unverified. Operational details are in [AGENTS.md](AGENTS.md).
+Paper is distributed as source: build it with your own Apple signing account. A Mac is needed for the initial build. Free Apple development signing expires after **seven days**, so choose a renewal method:
+
+| Method | What you need for renewal |
+| --- | --- |
+| Xcode | Rebuild and install from your Mac before expiry |
+| [SideStore](https://docs.sidestore.io/docs/installation/prerequisites) | Wi-Fi with internet and LocalDevVPN on the iPad; your Mac can be off |
+| [AltStore Classic](https://faq.altstore.io/altstore-classic/altserver) | A reachable computer running AltServer |
+| [Sideloadly](https://sideloadly.io/) | A computer running its automatic refresh service |
+
+For SideStore, follow its [installation guide](https://docs.sidestore.io/docs/installation/install), including the first self-refresh, then import your built `.ipa` in My Apps → +. Packaging commands are in [INTEGRATE.md](INTEGRATE.md#package-for-sidestore). When updating an existing Paper installation, back up first, enable Customize AppID, retain its original bundle ID and signing team, and uncheck Append Team ID. Keep Paper installed to preserve its library.
+
+Check Paper’s days remaining in SideStore and refresh before expiry. SideStore attempts background refresh; it has not been verified for Paper, so manually refresh every few days until you confirm it works on your device. LocalDevVPN is needed during renewal; downloaded reading and handwriting work offline without it.
+
+The original installation’s SideStore migration and launch were verified on 18 November 2026, with all 35 saved files unchanged. Reader/Anthropic credential continuity still needs verification after migration. This verifies the retained installed build; newer local feature work is not included in this repository release.
+
+[Paid Apple Developer membership](https://developer.apple.com/programs/) offers longer-lived signing for US$99/year or local equivalent. TestFlight requires that membership and [each build expires after 90 days](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/).

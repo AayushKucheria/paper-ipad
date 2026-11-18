@@ -21,3 +21,10 @@ The previous profile expired 27 October 22:03:04 UTC. Xcode renewal stopped on m
 ## Next logical step
 
 Verify Paper’s next SideStore refresh and preserved Reader/Anthropic access; continue manual refreshes until background renewal is proven.
+
+
+## Public adoption preparation — 18 November
+
+Prepared in an isolated full clone, preserving owner working changes. README includes source installation and SideStore renewal; scripts accept PAPER_BUNDLE_ID. Replaced embedded document thumbnail/library metadata in white-library prototype with synthetic examples. Thirty-four signed simulator unit tests passed; missing script configuration fails before device access. No new adopter device/live-account test or shareable product demo was produced.
+
+Repository remains private pending explicit history-cleanup authorization. Gitleaks 8.30.1 found no secrets in fetched branch history or prepared files; separate review found historical device identifiers, owner paths and embedded preview metadata requiring cleanup before publication. Full private release report is maintained outside this repository.
