@@ -1,0 +1,242 @@
+<!doctype html>
+<!-- Prototype for inserting a drawable sheet directly after a passage.
+     Text can resize while ink retains its proportions and stays with that passage. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paper · Inline scratch space</title>
+<style>
+:root {
+  color-scheme: light;
+  --paper: #f9f7f2; --surface: #fffefa; --ink: #282b25;
+  --muted: #585e55; --line: #d8d9d0; --green: #28574b;
+  font: 16px system-ui, sans-serif;
+}
+* { box-sizing: border-box }
+body { margin: 0; color: var(--ink); background: var(--paper) }
+header {
+  position: sticky; top: 0; z-index: 1; background: var(--paper);
+  border-bottom: 1px solid var(--line);
+}
+.bar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; padding: 11px 20px; max-width: 1120px; margin: auto;
+}
+.brand { font: 600 23px Georgia, serif }
+button {
+  color: var(--green); background: var(--surface); border: 1px solid var(--line);
+  font: 600 13px system-ui, sans-serif; min-height: 44px; border-radius: 7px;
+  padding: 4px 11px; cursor: pointer;
+}
+button:hover { background: #edf2ec }
+button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px }
+button:disabled { color: var(--muted); opacity: .65; cursor: default }
+.controls { display: flex; gap: 6px }
+.controls button { min-width: 44px }
+main { max-width: 780px; margin: 0 auto; padding: clamp(32px, 7vw, 80px) 24px }
+.eyebrow { color: var(--green); font-weight: 700; font-size: 12px; letter-spacing: .09em; text-transform: uppercase }
+h1 { margin: 12px 0; font: 500 clamp(40px, 7vw, 64px)/1.05 Georgia, serif; letter-spacing: -.035em }
+.subtitle { color: var(--muted); margin: 0 0 35px; font-size: 15px }
+article { border-top: 1px solid var(--line); padding-top: 14px; --size: 22px }
+article .reading { font: var(--size)/1.57 Georgia, serif }
+article p { margin: 15px 0 }
+.equation { text-align: center; color: var(--green); padding: 4px 0 }
+section + section { margin-top: 17px }
+.slot { margin: 16px 0 20px }
+.pad-toggle { display: inline-flex; align-items: center; gap: 10px; text-align: left }
+.pad-toggle canvas { border: 1px solid var(--line); border-radius: 4px }
+.pad {
+  margin-top: 7px; border: 1px solid var(--line); border-radius: 10px;
+  overflow: hidden; background: var(--surface);
+}
+.pad-bar {
+  display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center;
+  gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line);
+  font-size: 13px; color: var(--muted);
+}
+.pad-bar strong { color: var(--ink) }
+canvas.sheet {
+  display: block; width: 100%; aspect-ratio: 2 / 1; touch-action: none;
+  background: radial-gradient(circle at center, #c9d4c8 1px, transparent 1.15px) 0 0 / 18px 18px;
+  cursor: crosshair;
+}
+[hidden] { display: none !important }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <span class="brand">Paper</span>
+    <div class="controls" aria-label="Text size">
+      <button id="smaller" type="button" aria-label="Smaller text">A−</button>
+      <button id="larger" type="button" aria-label="Larger text">A+</button>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="eyebrow">Sample article</div>
+  <h1>The error inside a trapezoid</h1>
+  <p class="subtitle">A short derivation you can work through on the page</p>
+  <article>
+    <section aria-label="Approximation">
+      <div class="reading">
+        <p>A straight line makes an easy substitute for a curve. Between two points a distance <i>h</i> apart, it turns the area under the curve into a trapezoid. The estimate is the average of the two endpoint heights times the width.</p>
+      </div>
+      <div class="slot" data-passage="approximation"></div>
+    </section>
+    <section aria-label="Worked example">
+      <div class="reading">
+        <p>Try the simplest curved example, <i>f</i>(<i>x</i>) = <i>x</i>² on the interval from 0 to <i>h</i>. The trapezoid gives <i>h</i>³/2. The integral gives <i>h</i>³/3. Sketch the curve and the straight line, then see if you can find the area between them.</p>
+        <p class="equation">Trapezoid − integral = <i>h</i>³/6</p>
+      </div>
+      <div class="slot" data-passage="worked-example"></div>
+    </section>
+    <section aria-label="Curvature">
+      <div class="reading">
+        <p>That <i>h</i>³ matters. Cut the width in half and the error on each small interval falls by a factor of eight for this quadratic. Across the same total width you now have twice as many intervals, so the total error falls by a factor of four.</p>
+      </div>
+      <div class="slot" data-passage="curvature"></div>
+    </section>
+  </article>
+</main>
+<template id="pad-template">
+  <button type="button" class="pad-toggle" aria-expanded="false">
+    <canvas width="104" height="52" aria-hidden="true" hidden></canvas>
+    <span>Add scratch space</span>
+  </button>
+  <div class="pad" hidden>
+    <div class="pad-bar">
+      <div><strong>Scratch space</strong> · Draw with Pencil or a pointer</div>
+      <button type="button" class="undo" disabled>Undo stroke</button>
+    </div>
+    <canvas class="sheet" width="1200" height="600" aria-label="Scratch space drawing area"></canvas>
+  </div>
+</template>
+<script>
+const article = document.querySelector('article');
+const smaller = document.querySelector('#smaller');
+const larger = document.querySelector('#larger');
+let textSize = 22;
+
+function setTextSize(size) {
+  textSize = size;
+  article.style.setProperty('--size', textSize + 'px');
+  smaller.disabled = textSize <= 18;
+  larger.disabled = textSize >= 32;
+}
+
+smaller.onclick = () => setTextSize(textSize - 2);
+larger.onclick = () => setTextSize(textSize + 2);
+
+function paint(canvas, paths) {
+  const context = canvas.getContext('2d');
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.strokeStyle = '#28574b';
+  context.fillStyle = '#28574b';
+  context.lineWidth = canvas.classList.contains('sheet') ? 4 : 1.6;
+  context.lineJoin = 'round';
+  context.lineCap = 'round';
+  for (const path of paths) {
+    const [first, ...rest] = path;
+    context.beginPath();
+    if (rest.length === 0) {
+      context.arc(first.x * canvas.width, first.y * canvas.height, context.lineWidth / 2, 0, Math.PI * 2);
+      context.fill();
+    } else {
+      context.moveTo(first.x * canvas.width, first.y * canvas.height);
+      for (const point of rest) context.lineTo(point.x * canvas.width, point.y * canvas.height);
+      context.stroke();
+    }
+  }
+}
+
+for (const slot of document.querySelectorAll('.slot')) {
+  slot.append(document.querySelector('#pad-template').content.cloneNode(true));
+  const toggle = slot.querySelector('.pad-toggle');
+  const label = toggle.querySelector('span');
+  const thumbnail = toggle.querySelector('canvas');
+  const pad = slot.querySelector('.pad');
+  const undo = slot.querySelector('.undo');
+  const sheet = slot.querySelector('.sheet');
+  const passage = slot.dataset.passage;
+  const storageKey = 'paper-demo-scratch-' + passage;
+  pad.id = passage + '-scratch';
+  toggle.setAttribute('aria-controls', pad.id);
+  const section = slot.closest('section').getAttribute('aria-label');
+  let strokes = [];
+  let stroke = null;
+  let pointer = null;
+
+  try { strokes = JSON.parse(localStorage.getItem(storageKey)) || []; } catch {}
+
+  function update() {
+    const saved = strokes.length > 0;
+    toggle.setAttribute('aria-expanded', String(!pad.hidden));
+    label.textContent = pad.hidden ? (saved ? 'Open scratch space' : 'Add scratch space') : 'Collapse scratch space';
+    toggle.setAttribute('aria-label', label.textContent + ' after ' + section.toLowerCase());
+    thumbnail.hidden = !pad.hidden || !saved;
+    undo.disabled = !saved;
+    paint(sheet, stroke ? [...strokes, stroke] : strokes);
+    if (!thumbnail.hidden) paint(thumbnail, strokes);
+  }
+
+  function save() {
+    try { localStorage.setItem(storageKey, JSON.stringify(strokes)); } catch {}
+    update();
+  }
+
+  function point(event) {
+    const bounds = sheet.getBoundingClientRect();
+    return {
+      x: Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width)),
+      y: Math.max(0, Math.min(1, (event.clientY - bounds.top) / bounds.height))
+    };
+  }
+
+  toggle.onclick = () => {
+    pad.hidden = !pad.hidden;
+    update();
+  };
+
+  undo.onclick = () => {
+    strokes.pop();
+    save();
+  };
+
+  sheet.onpointerdown = event => {
+    if (pointer !== null || event.button !== 0 || event.pointerType === 'touch') return;
+    pointer = event.pointerId;
+    stroke = [point(event)];
+    sheet.setPointerCapture(pointer);
+    update();
+  };
+
+  sheet.onpointermove = event => {
+    if (pointer !== event.pointerId) return;
+    stroke.push(point(event));
+    paint(sheet, [...strokes, stroke]);
+  };
+
+  sheet.onpointerup = event => {
+    if (pointer !== event.pointerId) return;
+    strokes.push(stroke);
+    stroke = null;
+    pointer = null;
+    save();
+  };
+
+  function endInterruptedStroke(event) {
+    if (pointer !== event.pointerId) return;
+    stroke = null;
+    pointer = null;
+    update();
+  }
+
+  sheet.onpointercancel = endInterruptedStroke;
+  sheet.onlostpointercapture = endInterruptedStroke;
+  update();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,198 @@
+<!doctype html>
+<!-- Draw directly on reflowable article text. Ink preserves the layout of the marked
+     section, while each section carries a link to its original source passage. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paper · Write on an article</title>
+<style>
+* { box-sizing: border-box }
+body { margin: 0; background: #f5f4ef; color: #262925; font: 15px system-ui }
+header { position: sticky; top: 0; z-index: 1; background: #f5f4ef; border-bottom: 1px solid #d9dcd2 }
+.toolbar { max-width: 980px; margin: auto; min-height: 60px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 20px }
+.brand { margin-right: auto; font: bold 22px Georgia }
+button, a { color: #244533; font: inherit }
+button { cursor: pointer; border: 1px solid #cbd2c7; border-radius: 7px; background: #fff; padding: 8px 12px }
+button[aria-pressed=true] { background: #dbe8dc; border-color: #53745c }
+button:disabled { opacity: .55; cursor: default }
+main { max-width: 860px; margin: 28px auto; padding: 0 16px }
+.intro { margin: 0 0 18px; color: #515b51; font-size: 14px }
+article { background: #fff; border: 1px solid #e0e1d8; border-radius: 4px; padding: clamp(14px, 4vw, 46px); font: var(--reading-size, 20px)/1.6 Georgia }
+h1 { margin: 0 0 18px; font-size: 2em; line-height: 1.12; letter-spacing: -.035em }
+.byline { font: 13px system-ui; color: #556455; margin-bottom: 10px }
+.region { position: relative; padding: .6em clamp(16px, 9vw, 105px) .6em 0 }
+.region p { margin: 0 }
+.region figure { width: fit-content; max-width: 100%; margin: .7em 0 0; padding: .4em .7em; background: #edf2ec; border-radius: 4px }
+.region figcaption { font: .68em system-ui; color: #3c4c3c }
+.region svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none }
+.region[data-marked] { box-shadow: inset -3px 0 #b8cbbb }
+.draw-mouse .region { cursor: crosshair; user-select: none }
+footer { margin-top: 14px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap }
+#status { color: #515b51 }
+dialog { width: min(90%, 560px); border: 1px solid #c2ccbf; border-radius: 10px; padding: 24px }
+dialog::backdrop { background: #17271b55 }
+blockquote { margin-inline: 0; padding-left: 16px; border-left: 2px solid #91a992 }
+</style>
+</head>
+<body>
+<header><div class="toolbar">
+  <span class="brand">Paper</span>
+  <button id="smaller" aria-label="Decrease text size">A−</button>
+  <button id="larger" aria-label="Increase text size">A+</button>
+  <button id="mouse" aria-pressed="false">Draw with mouse</button>
+  <button id="undo" disabled>Undo</button>
+</div></header>
+<main>
+  <p class="intro">Draw with Pencil or turn on mouse drawing. Try drawing an arrow from the second paragraph to the diagram, then change the text size.</p>
+  <article>
+    <div class="byline">Sample article · Graph theory</div>
+    <h1>When can you cross each bridge once?</h1>
+    <div class="slot"><section class="region" data-source="intro"><p>Imagine a city split by a river. You can cross from one bank to the other by several bridges. Can you walk through the city and use every bridge exactly once?</p></section></div>
+    <div class="slot"><section class="region" data-source="degree"><p>Every time you enter an intermediate landmass by one bridge, you must leave by another. The bridges at that landmass therefore come in pairs.</p>
+      <figure><div aria-label="A route entering and leaving B">A ─── B ─── C</div><figcaption>At B, one bridge brings you in and one takes you out.</figcaption></figure></section></div>
+    <div class="slot"><section class="region" data-source="endpoints"><p>The start and finish are exceptions. You can leave the start without first entering it. You can enter the finish without leaving it. Those are the only places where a bridge can be left without a partner.</p></section></div>
+    <div class="slot"><section class="region" data-source="result"><p>If the bridge network is connected, a walk of this kind exists when zero or two landmasses have an odd number of bridges. With two odd landmasses, one must be the start and the other the finish.</p></section></div>
+  </article>
+  <footer><button id="source" disabled>Show source passage</button><span id="status" role="status"></span></footer>
+</main>
+<dialog id="source-dialog">
+  <h2>Passage under the last mark</h2>
+  <blockquote></blockquote>
+  <p id="anchor"></p>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
+<script>
+const article = document.querySelector('article');
+const regions = [...article.querySelectorAll('.region')];
+const undo = document.querySelector('#undo');
+const source = document.querySelector('#source');
+const mouse = document.querySelector('#mouse');
+const status = document.querySelector('#status');
+const storageKey = 'paper.article-direct-ink.v1';
+const svgNS = 'http://www.w3.org/2000/svg';
+let readingSize = 20;
+let marks = [];
+let active = null;
+try { marks = JSON.parse(localStorage.getItem(storageKey) || '[]'); } catch {}
+const sourceText = new Map(regions.map(region => [region.dataset.source, region.querySelector('p').textContent]));
+
+function render() {
+  for (const region of regions) {
+    const local = marks.filter(mark => mark.source === region.dataset.source);
+    const first = local[0];
+    const slot = region.parentElement;
+    let overlay = region.querySelector('svg');
+    if (!first) {
+      region.removeAttribute('style');
+      delete region.dataset.marked;
+      overlay?.remove();
+      continue;
+    }
+    region.dataset.marked = '';
+    region.style.width = first.width + 'px';
+    region.style.fontSize = first.fontSize;
+    region.style.paddingRight = first.margin;
+    region.style.zoom = Math.min(1, slot.clientWidth / first.width);
+    if (!overlay) {
+      overlay = document.createElementNS(svgNS, 'svg');
+      overlay.setAttribute('aria-hidden', 'true');
+      region.append(overlay);
+    }
+    overlay.setAttribute('viewBox', '0 0 ' + first.width + ' ' + region.offsetHeight);
+    overlay.replaceChildren(...local.map(mark => {
+      const path = document.createElementNS(svgNS, 'polyline');
+      path.setAttribute('points', mark.points.map(p => p.join(',')).join(' '));
+      path.setAttribute('stroke', '#285d8a');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('stroke-linejoin', 'round');
+      path.setAttribute('fill', 'none');
+      return path;
+    }));
+  }
+  undo.disabled = source.disabled = !marks.length;
+}
+
+function save() {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(marks));
+    status.textContent = marks.length ? 'Marks saved in this browser.' : 'No marks on this article.';
+  } catch {
+    status.textContent = 'This browser could not save your marks.';
+  }
+}
+
+function addPoint(event) {
+  const { region, mark } = active;
+  const rect = region.getBoundingClientRect();
+  const scale = rect.width / mark.width;
+  const x = Math.max(0, Math.min(mark.width, (event.clientX - rect.left) / scale));
+  const y = Math.max(0, Math.min(region.offsetHeight, (event.clientY - rect.top) / scale));
+  mark.points.push([x, y]);
+}
+
+for (const region of regions) {
+  region.addEventListener('pointerdown', event => {
+    if (active || event.button !== 0) return;
+    if (event.pointerType !== 'pen' && !(event.pointerType === 'mouse' && mouse.getAttribute('aria-pressed') === 'true')) return;
+    event.preventDefault();
+    const first = marks.find(mark => mark.source === region.dataset.source);
+    const style = getComputedStyle(region);
+    const mark = {
+      source: region.dataset.source,
+      width: first?.width ?? region.offsetWidth,
+      fontSize: first?.fontSize ?? style.fontSize,
+      margin: first?.margin ?? style.paddingRight,
+      points: []
+    };
+    active = { region, mark, pointerId: event.pointerId };
+    region.setPointerCapture(event.pointerId);
+    addPoint(event);
+    marks.push(mark);
+    render();
+  });
+  region.addEventListener('pointermove', event => {
+    if (active?.pointerId !== event.pointerId) return;
+    for (const point of event.getCoalescedEvents?.() || []) addPoint(point);
+    addPoint(event);
+    render();
+  });
+  const finish = event => {
+    if (active?.pointerId !== event.pointerId) return;
+    if (event.type === 'pointerup') addPoint(event);
+    if (active.mark.points.length < 2) marks.pop();
+    active = null;
+    render();
+    save();
+  };
+  region.addEventListener('pointerup', finish);
+  region.addEventListener('pointercancel', finish);
+  region.addEventListener('lostpointercapture', finish);
+}
+mouse.onclick = () => {
+  const enabled = mouse.getAttribute('aria-pressed') !== 'true';
+  mouse.setAttribute('aria-pressed', enabled);
+  article.classList.toggle('draw-mouse', enabled);
+};
+function resizeText(delta) {
+  readingSize = Math.max(16, Math.min(32, readingSize + delta));
+  article.style.setProperty('--reading-size', readingSize + 'px');
+  render();
+}
+document.querySelector('#larger').onclick = () => resizeText(2);
+document.querySelector('#smaller').onclick = () => resizeText(-2);
+undo.onclick = () => { marks.pop(); render(); save(); };
+source.onclick = () => {
+  const id = marks.at(-1).source;
+  const dialog = document.querySelector('dialog');
+  dialog.querySelector('blockquote').textContent = sourceText.get(id);
+  dialog.querySelector('#anchor').textContent = 'Sample article · ' + id;
+  dialog.showModal();
+};
+const observer = new ResizeObserver(render);
+observer.observe(article);
+render();
+</script>
+</body>
+</html>
