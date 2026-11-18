@@ -8,6 +8,16 @@ private final class ReviewHTTPProtocol: URLProtocol, @unchecked Sendable {
     override func startLoading(){do{let(status,data)=try Self.handle(request);client?.urlProtocol(self,didReceive:HTTPURLResponse(url:request.url!,statusCode:status,httpVersion:nil,headerFields:nil)!,cacheStoragePolicy:.notAllowed);client?.urlProtocol(self,didLoad:data);client?.urlProtocolDidFinishLoading(self)}catch{client?.urlProtocol(self,didFailWithError:error)}}
     override func stopLoading(){}
 }
+private extension URLRequest {
+    func httpBodyStreamData() -> Data {
+        if let httpBody { return httpBody }
+        guard let stream = httpBodyStream else { return Data() }
+        stream.open(); defer { stream.close() }
+        var data = Data(); var buffer = [UInt8](repeating: 0, count: 65536)
+        while stream.hasBytesAvailable { let n = stream.read(&buffer, maxLength: buffer.count); if n <= 0 { break }; data.append(buffer, count: n) }
+        return data
+    }
+}
 final class ReviewNetworkTests:XCTestCase {
     func session()->URLSession{let c=URLSessionConfiguration.ephemeral;c.protocolClasses=[ReviewHTTPProtocol.self];return URLSession(configuration:c)}
     func testAnthropicDecodesStructuredTextAndRejectsTruncation() async throws {
@@ -15,12 +25,12 @@ final class ReviewNetworkTests:XCTestCase {
         ReviewHTTPProtocol.handle={req in
             XCTAssertEqual(req.url?.host,"api.anthropic.com")
             XCTAssertEqual(req.value(forHTTPHeaderField:"x-api-key"),"fake-anthropic-key")
-            let input = #"{"items":[{"pages":[2],"quote":"Printed words","note":"Why?","interpretation":"","kind":"handwriting"}]}"#
+            let input = #"{"items":[{"pages":[1],"quote":"Printed words","note":"Why?","interpretation":"","kind":"handwriting"}]}"#
             return (200,try JSONSerialization.data(withJSONObject:["stop_reason":truncated ? "max_tokens":"end_turn","content":[["type":"text","text":input]]]))
         }
         let api=AnthropicMarkupAPI(key:"fake-anthropic-key",session:session())
         let items=try await api.analyze([AnalysisPage(number:2,jpeg:Data([0]),sourceText:"Printed words")])
-        XCTAssertEqual(items.first?.note,"Why?")
+        XCTAssertEqual(items.first?.note,"Why?");XCTAssertEqual(items.first?.pages,[2])
         truncated=true
         do{_=try await api.analyze([AnalysisPage(number:2,jpeg:Data([0]),sourceText:"")]);XCTFail("Truncated analysis must not become drafts")}catch{}
     }
@@ -57,6 +67,21 @@ final class ReviewNetworkTests:XCTestCase {
         historical["pricingVersion"] = "unknown-version"
         let unknown = try JSONDecoder().decode(AnalysisUsage.self,from:JSONSerialization.data(withJSONObject:historical))
         XCTAssertNil(unknown.estimatedDollars)
+    }
+    func testAnthropicSendsSimpleCaptureNumbersAndMapsPagesBackToRegionIDs() async throws {
+        var sentText = ""
+        ReviewHTTPProtocol.handle={req in
+            let body = try JSONSerialization.jsonObject(with: req.httpBodyStreamData()) as! [String:Any]
+            let messages = body["messages"] as! [[String:Any]]
+            sentText = (messages[0]["content"] as! [[String:Any]]).compactMap { $0["text"] as? String }.joined(separator:"|")
+            let input = #"{"items":[{"pages":[1],"quote":"a","note":"n","interpretation":"","kind":"handwriting"},{"pages":[2],"quote":"b","note":"","interpretation":"","kind":"diagram"}]}"#
+            return (200,try JSONSerialization.data(withJSONObject:["stop_reason":"end_turn","content":[["type":"text","text":input]]]))
+        }
+        let api=AnthropicMarkupAPI(key:"fake-anthropic-key",session:session())
+        let items=try await api.analyze([AnalysisPage(number:100_001,jpeg:Data([0]),sourceText:"A"),AnalysisPage(number:200_003,jpeg:Data([0]),sourceText:"B")])
+        XCTAssertEqual(items.map(\.pages),[[100_001],[200_003]])
+        XCTAssertTrue(sentText.contains("Capture 1.") && sentText.contains("Capture 2."))
+        XCTAssertFalse(sentText.contains("100001") || sentText.contains("200003"))
     }
     func testAnthropicErrorsDoNotExposeKeyOrRawServiceBody() async throws {
         ReviewHTTPProtocol.handle={_ in(401,Data("fake-anthropic-key private-service-body".utf8))}

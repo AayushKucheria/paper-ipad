@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 struct ReviewItem: Codable, Identifiable, Equatable, Sendable {
     enum State: String, Codable, Sendable { case draft, sending, sent, skipped }
@@ -48,15 +49,18 @@ enum ReviewError: LocalizedError, Equatable {
     }
 }
 struct MarkupExtraction {
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Paper", category: "analysis-decode")
     struct Envelope: Decodable { let items: [Candidate] }
     struct Candidate: Decodable {
         let pages: [Int]; let quote: String; let note: String; let interpretation: String; let kind: String
     }
     static func decode(_ data: Data, allowedPages: Set<Int>) throws -> [ReviewItem] {
-        guard let result = try? JSONDecoder().decode(Envelope.self, from: data), result.items.count <= 100 else { throw ReviewError.invalidResponse }
+        guard let result = try? JSONDecoder().decode(Envelope.self, from: data) else { log.error("decode_failure reason=schema_mismatch"); throw ReviewError.invalidResponse }
+        guard result.items.count <= 100 else { log.error("decode_failure reason=too_many_items"); throw ReviewError.invalidResponse }
         return try result.items.map { c in
-            guard !c.pages.isEmpty, Set(c.pages).isSubset(of: allowedPages), c.quote.count <= 20000,
-                  c.note.count <= 20000, c.interpretation.count <= 20000 else { throw ReviewError.invalidResponse }
+            guard !c.pages.isEmpty else { log.error("decode_failure reason=empty_pages"); throw ReviewError.invalidResponse }
+            guard Set(c.pages).isSubset(of: allowedPages) else { log.error("decode_failure reason=pages_not_supplied"); throw ReviewError.invalidResponse }
+            guard c.quote.count <= 20000, c.note.count <= 20000, c.interpretation.count <= 20000 else { log.error("decode_failure reason=field_too_long"); throw ReviewError.invalidResponse }
             return ReviewItem(pages: Array(Set(c.pages)).sorted(), quote: c.quote, note: c.note, interpretation: c.interpretation, kind: c.kind)
         }
     }

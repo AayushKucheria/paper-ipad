@@ -47,13 +47,16 @@ actor AnthropicMarkupAPI: MarkupAnalyzing {
                     "required":["pages","quote","note","interpretation","kind"],"additionalProperties":false]]], "required":["items"], "additionalProperties":false]]
     }
     func lastUsage() async -> AnalysisUsage? { usage }
+    private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "Paper", category: "analysis-api")
     func analyze(_ pages: [AnalysisPage]) async throws -> [ReviewItem] {
         usage = nil
         guard !key.isEmpty else { throw ReviewError.noKey }
         guard (1...6).contains(pages.count) else { throw ReviewError.invalidPages }
+        // The model only ever sees simple 1...n capture numbers; real region/page ids (e.g. 100001) are mapped back afterwards.
+        let realNumbers = pages.map(\.number)
         var content: [[String: Any]] = []
-        for page in pages {
-            content.append(["type":"text","text":"Capture \(page.number). Original printed text (may be incomplete):\n\(page.sourceText.prefix(16000))"])
+        for (index, page) in pages.enumerated() {
+            content.append(["type":"text","text":"Capture \(index + 1). Original printed text (may be incomplete):\n\(page.sourceText.prefix(16000))"])
             content.append(["type":"image","source":["type":"base64","media_type":"image/jpeg","data":page.jpeg.base64EncodedString()]])
         }
         let payload: [String: Any] = ["model":modelID,"max_tokens":8000,"system":Self.instructions,
@@ -64,13 +67,19 @@ actor AnthropicMarkupAPI: MarkupAnalyzing {
         request.httpBody = try JSONSerialization.data(withJSONObject: payload)
         do {
             let (data, response) = try await session.data(for: request, delegate: NoCredentialRedirects())
-            guard let http = response as? HTTPURLResponse else { throw ReviewError.invalidResponse }
-            if http.statusCode == 429 { throw ReviewError.rateLimited }
-            guard http.statusCode == 200 else { throw ReviewError.unavailable }
-            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any], json["stop_reason"] as? String == "end_turn",
-                  let blocks = json["content"] as? [[String: Any]],
-                  let text = blocks.first(where: { $0["type"] as? String == "text" })?["text"] as? String else { throw ReviewError.invalidResponse }
-            let items = try MarkupExtraction.decode(Data(text.utf8), allowedPages: Set(pages.map(\.number)))
+            guard let http = response as? HTTPURLResponse else { Self.log.error("analysis_failure reason=no_http_response"); throw ReviewError.invalidResponse }
+            if http.statusCode == 429 { Self.log.error("analysis_failure reason=rate_limited status=429"); throw ReviewError.rateLimited }
+            guard http.statusCode == 200 else { Self.log.error("analysis_failure reason=http_status status=\(http.statusCode)"); throw ReviewError.unavailable }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { Self.log.error("analysis_failure reason=body_not_json"); throw ReviewError.invalidResponse }
+            let stop = json["stop_reason"] as? String
+            guard stop == "end_turn" else { Self.log.error("analysis_failure reason=stop_reason stop=\(stop ?? "nil", privacy: .public)"); throw ReviewError.invalidResponse }
+            guard let blocks = json["content"] as? [[String: Any]],
+                  let text = blocks.first(where: { $0["type"] as? String == "text" })?["text"] as? String else { Self.log.error("analysis_failure reason=no_text_block"); throw ReviewError.invalidResponse }
+            let items = try MarkupExtraction.decode(Data(text.utf8), allowedPages: Set(1...pages.count)).map { item -> ReviewItem in
+                var mapped = item
+                mapped.pages = Array(Set(item.pages.map { realNumbers[$0 - 1] })).sorted()
+                return mapped
+            }
             if let counts = json["usage"] as? [String:Any], let input = counts["input_tokens"] as? Int, let output = counts["output_tokens"] as? Int {
                 usage = AnalysisUsage(model: json["model"] as? String ?? modelID, inputTokens: input, outputTokens: output,
                     cacheReadTokens: counts["cache_read_input_tokens"] as? Int ?? 0, cacheWriteTokens: counts["cache_creation_input_tokens"] as? Int ?? 0, pages: pages.map(\.number), date: Date())
