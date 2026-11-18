@@ -2,7 +2,7 @@
 
 ## In progress
 
-- Paper recovered through SideStore. User imported the retained 22 October Paper.ipa with Customize AppID enabled and Append Team ID unchecked. Original bundle ID `com.aayush.paper.reader` and team `<your-team-id>` retained. Device launch succeeded; all 35 Documents hashes match the pre-migration manifest.
+- Paper recovered through SideStore. User imported the retained 22 October Paper.ipa with Customize AppID enabled and Append Team ID unchecked. Original bundle ID `com.aayush.paper.reader` and the original signing team retained. Device launch succeeded; all 35 Documents hashes match the pre-migration manifest.
 - Verify a subsequent SideStore refresh and background renewal. Until verified, manually refresh every few days using Wi-Fi and LocalDevVPN. Mac can be off. Check the current expiry in SideStore; no exact new profile expiry was measured.
 - Verify Reader and Anthropic Keychain access after migration without exposing credentials or sending an unconfirmed highlight.
 

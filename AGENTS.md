@@ -18,7 +18,7 @@ Agent-facing notes for Paper. The README is for people; everything operational l
 - Project definition: `project.yml` (run `xcodegen generate` after changing targets). Targets iPadOS 18+.
 - Bundle ID `com.aayush.paper.reader`; Personal Team `<your-team-id>`.
 - Device: iPad Air (5th gen), UDID `<your-device-udid>`, Developer Mode on.
-- Paper uses SideStore renewal as of 18 November 2026; see below. Preserve the same bundle/team identity; never uninstall (it would delete the local library).
+- Original installation recovered through SideStore on 18 November 2026; see below. Preserve bundle/signing identity and never uninstall.
 - Never print, commit or pass a Reader token in command arguments.
 
 ## Unit tests (simulator)
@@ -35,7 +35,7 @@ Last run: 34 unit tests, 0 failures (21 Oct 2026). Simulator review/send/restore
 
 ## Build and install on the iPad
 
-Preferred: `python3 scripts/update-ipad.py`. It backs up Documents to `~/Documents/Paper Backups`, builds, checks bundle/signing identity, installs in place, compares Library SHA-256 hashes, then launches. Keep the iPad unlocked and finish Markup edits first. The 21 Oct update preserved all 16 Documents files. Use `--renew-signing` to request fresh automatic provisioning and require a later expiry before installation. Verify embedded expiry; a normal rebuild may reuse a profile.
+Export your own `PAPER_DEVICE_UDID` and `PAPER_TEAM_ID` first (see `.env.example`). Preferred: `python3 scripts/update-ipad.py`. It backs up Documents to `~/Documents/Paper Backups`, builds, checks bundle/signing identity, installs in place, compares Library SHA-256 hashes, then launches. Keep the iPad unlocked and finish Markup edits first. The 21 Oct update preserved all 16 Documents files. Use `--renew-signing` to request fresh automatic provisioning and require a later expiry before installation. Verify embedded expiry; a normal rebuild may reuse a profile.
 
 Manual commands (back up first):
 
@@ -51,7 +51,7 @@ xcrun devicectl device process launch --device <your-device-udid> \
 
 ## Provisioning the Anthropic key
 
-Preferred: AI settings in the app. Development: `python3 scripts/provision-anthropic.py` reads `ANTHROPIC_API_KEY` from ignored `.env`, copies a private one-time file to `tmp/anthropic-key.txt`, then deletes the local copy. Relaunch with `xcrun devicectl device process launch --terminate-existing --device <your-device-udid> com.aayush.paper.reader`. The app moves the key into the separate `com.aayush.paper.reader.anthropic` Keychain service and deletes the import file. Never display keys, pass them in arguments, or bundle `.env`.
+Preferred: AI settings in the app. Export `PAPER_DEVICE_UDID` for development provisioning. Development: `python3 scripts/provision-anthropic.py` reads `ANTHROPIC_API_KEY` from ignored `.env`, copies a private one-time file to `tmp/anthropic-key.txt`, then deletes the local copy. Relaunch with `xcrun devicectl device process launch --terminate-existing --device <your-device-udid> com.aayush.paper.reader`. The app moves the key into the separate `com.aayush.paper.reader.anthropic` Keychain service and deletes the import file. Never display keys, pass them in arguments, or bundle `.env`.
 
 Opt-in physical analysis test: `TEST_RUNNER_PAPER_LIVE_REVIEW_ID=<localUUID> xcodebuild test -project Paper.xcodeproj -scheme Paper -destination 'id=<your-device-udid>' -derivedDataPath build-device -allowProvisioningUpdates -only-testing:PaperUITests/ReviewLiveSmokeTests`. This sends selected saved pages to Anthropic, persists drafts, and creates no Reader highlight.
 
@@ -91,7 +91,7 @@ xcodebuild test -project Paper.xcodeproj -scheme Paper -destination 'id=<your-de
 
 Paper is now managed by SideStore on the iPad. Free signing still expires after seven days; check Paper’s counter in SideStore → My Apps and refresh before expiry. Refreshing needs Wi-Fi with internet and LocalDevVPN connected. The Mac can be off. Background refresh has not yet been verified, so manually refresh every few days for now. Downloaded reading and handwriting need neither VPN nor internet.
 
-Migration retained `com.aayush.paper.reader` and team `<your-team-id>`. For future imports, enable Settings → Advanced Settings → User Customizations → Customize AppID; leave the original App ID and uncheck Append Team ID. Never uninstall Paper. The 18 November migration preserved all 35 Documents files byte for byte and the app launched successfully. Reader/Anthropic credential continuity remains unverified.
+Migration retained `com.aayush.paper.reader` and the original signing team. For future imports, enable Settings → Advanced Settings → User Customizations → Customize AppID; leave the original App ID and uncheck Append Team ID. Never uninstall Paper. The 18 November migration preserved all 35 Documents files byte for byte and the app launched successfully. Reader/Anthropic credential continuity remains unverified.
 
 Backup: `~/Documents/Paper Backups/2026-11-18-213214/before`; SHA-256 manifest: `library-sha256.json` in its parent. Post-install verification copy: `~/Documents/Paper Backups/2026-11-18-sidestore-verification`. Prepared IPA: `~/Documents/Paper Backups/SideStore Setup/Paper.ipa` (retained 22 October build; re-sign before installation).
 

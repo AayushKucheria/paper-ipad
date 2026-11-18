@@ -13,7 +13,7 @@ The approved library and markup review workflow are implemented and installed. S
 - [x] Selected-page rendering and Anthropic structured analysis, cancellation, elapsed progress, safe errors, validated page references and local draft persistence.
 - [x] Persist confirmed delivery payload before POST; retain returned Reader IDs; reconcile ambiguous sends; preserve sent items during reanalysis. Red/green regression tests cover both duplicate risks.
 - [x] Measure live full-refresh decode failure at image_url, record index 39. Reproduce in a failing API test; tolerate malformed optional covers; verify live refresh succeeds.
-- [x] Renew signing, back up Documents, install over the app and compare hashes. Latest backup: `~/Documents/Paper Backups/2026-10-21-013041`.
+- [x] Renew signing, back up Documents, install over the app and compare hashes. Latest backup: `~/Documents/Paper Backups/<backup-timestamp>`.
 - [x] Provision Anthropic through a private one-time file; verify it was consumed into Keychain. Keep .env and private samples outside Git.
 
 ## Verification
