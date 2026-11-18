@@ -1,61 +1,67 @@
-# Paper
+# Using Paper
 
-An iPad PDF library with native Apple Pencil Markup and a connection to Readwise Reader.
+An iPad reading library for PDFs, Reader articles and EPUBs, with Apple Pencil writing and reviewed notes sent back to Readwise Reader.
 
-## Reading and the library
+## Read and write
 
-- **Library:** browse/search Reader PDFs with covers, titles, authors and descriptions.
-- **Downloaded:** open offline, review markup, export the annotated PDF, or remove a download through its ••• menu.
-- **Recently Removed:** restore a PDF with all its markup and drafts. Permanent deletion frees storage and clearly asks for confirmation.
-- **Refresh:** cached metadata appears immediately. “Check for updates” fetches changed records; “Refresh entire catalog” also reconciles remote removals. Local work remains independent.
+**Downloaded opens first.** Tap a document's cover or title to read it offline. The ••• menu offers Review markup, Export annotated PDF and Remove download. **Library** browses Reader PDFs; the compact library shows overlapping Downloaded, Reading and Shortlist shelves plus a format filter.
 
-The original PDF stays untouched. Draw in Apple's native Quick Look/Markup; edits are saved in a separate working copy.
+**Articles and EPUBs** open in a fixed portrait reader. Put the Pencil down anywhere to write; there's no mode to enter. Apple's native tool palette gives pen, highlighter, colors, eraser and lasso. One finger scrolls, and ink stays attached to the text as you scroll. Ink and reading position are saved per article or EPUB chapter, separately from the original text. Unlocked EPUBs only. Article copies prepared as PDFs by earlier versions still open with native PDF Markup, and ink from the pre-PencilKit reader is migrated automatically with the original file kept.
 
-## Reviewing markup
+**PDFs** open in Apple's Quick Look Markup. Finish with **Done** to commit your edits. Paper preserves the untouched original and saves your handwriting in a separate annotated copy. Saving works independently of AI analysis.
 
-1. Finish Markup and return to Downloaded. Open the PDF's ••• menu → **Review markup**.
-2. Use landscape for the full PDF on the left and the draft on the right. Portrait stacks the views.
-3. Choose up to six pages and tap **Analyze with Claude**. Only those page images and their source text are sent to Anthropic using your API account.
-4. Check the quoted passage, handwritten transcription and labeled AI interpretation. You can edit them or add a draft manually.
-5. **Confirm and send to Reader** creates a text highlight with your note on the original Reader document. Drafts and the original visual markup stay on the iPad.
+**Recently Removed** keeps the whole document with its markup and review drafts. Restore returns it to Downloaded. Permanent deletion explicitly asks for confirmation.
 
-Analysis can misread writing or infer the wrong connection. A diagram's interpretation is a suggestion. Reader needs a matching source passage; standalone drawings and imported PDFs without a Reader link remain local. A multi-page passage may need correction to match Reader's parsed text.
+**Refresh:** cached metadata appears immediately. "Check for updates" fetches changed records; "Refresh entire catalog" also reconciles remote removals. Local work remains independent.
 
-If delivery cannot be confirmed, use **Check delivery** before retrying. Sent items remain recorded after relaunch. A manual retry is available after checking Reader for duplicates.
+## Review your markup
 
-Reading and saving markup work independently of analysis and delivery. Sending is manual; real Reader passage matching, PDF placement and downstream Readwise retrieval still need verification in this account.
+1. Open **Markups** to scroll through pending notes across your documents, or choose **Review markup** from a document’s ••• menu.
+2. For PDFs, pick page thumbnails visually, up to six at a time. For articles and EPUB chapters, Paper captures your ink with the nearby original text; the tool palette is excluded from the image. Marked pages appear first; **All pages** lets you include surrounding context or flattened marks. Newly changed marked pages are selected automatically, up to the six-page limit.
+3. Tap **Analyze selected pages**. Paper sends those annotated page images and their original text to Anthropic using your API account.
+4. Scroll through the resulting cards. Check and edit the quoted passage, handwriting transcription and labeled AI interpretation.
+5. **Confirm and send to Reader** creates a text highlight and note on the original Reader document.
 
-## Analysis context and cost
+Drawings without a clear text association stay as local drafts. Choose a meaningful source passage if you want to send one; Paper keeps the quote empty when association is uncertain. The original ink stays in the annotated PDF, while Reader receives reviewed text.
 
-Claude receives the complete marked-up image and original printed text for every page in your chosen range, including unmarked pages within it. Images are rendered with a longest edge of roughly 1,560 pixels; printed text is capped at 16,000 characters per page. The suggested range starts at the first detected marked page and includes up to six consecutive pages. Check **From/To** before analyzing. Each request uses those pages and extraction instructions, without earlier analysis history or other PDF pages.
+Delivery requires a matching source passage and a Reader document link. If a send has an unknown outcome, use **Check delivery** before allowing a retry. Sent records survive relaunch. One user-confirmed delivery through the real Reader account and downstream Readwise retrieval still needs verification. See [Reader’s highlight API](https://readwise.io/reader_api).
 
-Only **Analyze with Claude** calls Anthropic. Reading, drawing, editing saved drafts and sending them to Reader incur no Anthropic analysis charge. Reanalysis makes another paid request.
+## AI quality and cost
 
-As checked on 21 October 2026, [Sonnet 5.5 pricing](https://platform.claude.com/docs/en/about-claude/pricing) is US$2 per million input tokens and US$10 per million output tokens. These estimates use assumed token counts, including images; they are not measured bills:
+Analysis is deliberate: reading, writing and editing drafts make no Anthropic request. A wholly unchanged selection is skipped unless you choose **Reanalyze unchanged pages**. Unchanged pages selected alongside new marks are included as context. Each selected page contributes a complete image, roughly 1,560 pixels on its longest edge, and up to 16,000 characters of original text.
 
-| Analysis | Assumed input / output tokens | Approximate cost, before tax |
-| --- | --- | --- |
-| One page | 3,000–6,000 / 500–1,500 | US$0.01–$0.03 |
-| Six pages | 15,000–30,000 / 1,000–4,000 | US$0.04–$0.10 |
+**AI settings** offers Sonnet and cheaper Haiku. Sonnet remains the default while Haiku’s handwriting quality is evaluated. Paper retains token usage and displays estimated request costs where supported; your provider bill is authoritative. [Anthropic pricing](https://platform.claude.com/docs/en/about-claude/pricing):
 
-A starting allowance is US$1–$3 per 100 analyzed pages, with additional cost for repeated analysis. Actual usage depends on page density and returned annotations. The app currently does not retain API usage figures or show per-analysis cost.
+| Model | Input / million tokens | Output / million tokens |
+| --- | ---: | ---: |
+| Sonnet 5.5 | US$2 | US$10 |
+| Haiku 5.5, prompts under 100,000 tokens | US$0.10 | US$0.50 |
+
+On 22 October, a private five-crop screening cost **US$0.0019437 with Haiku** and **US$0.042184 with Sonnet**, calculated from returned token counts. A separate live structured Haiku request worked: **5,573 input / 1,033 output tokens, 14 draft items, 8.03 seconds**. These establish functioning requests and sample costs; transcription, equation, diagram and passage-matching accuracy still need a reviewed benchmark. Check every result.
+
+## Back up your library
+
+Open **Library actions → Backups → Choose backup folder**. Select Dropbox, iCloud Drive or another folder enabled in Files. Setup requires your folder choice.
+
+Paper keeps dated complete copies of original and annotated PDFs, article source files, review drafts, analysis records, catalogs and Recently Removed. Copies are checked against SHA-256 checksums. Earlier versions remain available after a failed backup; retained versions use additional storage. API keys are excluded. Restore into a fresh folder is covered by tests.
+
+After setup, backups run after native saves, when leaving review and when returning to the app. Keep Paper open until verification finishes. **Last verified copy** describes the copy in your selected folder; your cloud provider controls its upload. Check the provider’s status in Files.
 
 ## Connections and keys
 
-The Reader token and Anthropic key are stored separately in the iPad's Keychain. Reader connection and AI settings let you replace them. Downloaded PDFs survive connection failures.
-
-The ignored `.env` on the Mac is a development configuration file; it is never bundled in the app. The existing Reader token is already in the iPad's Keychain, so it need not be copied into `.env`. Anthropic usage is billed to your API account.
+The Reader token and Anthropic key are stored separately in the iPad's Keychain. Reader connection and AI settings let you replace them. Downloaded documents survive connection failures. The ignored `.env` on the Mac is development configuration and is never bundled in the app.
 
 ## Signing and updates
 
-See the [README renewal guide](../README.md#install-on-your-ipad-and-keep-it-working) for current Xcode, SideStore and other distribution choices. Update over the existing app with the same bundle/signing identity, back up first, and never uninstall a library you want to preserve. SideStore migration preserved the original installation’s documents and launch; credential continuity and background refresh remain unverified.
+See the [README renewal guide](../README.md#install-on-your-ipad-and-keep-it-working) for Xcode, SideStore and other distribution choices. Update over the existing app with the same bundle/signing identity, back up first, and never uninstall a library you want to preserve.
 
 ## Known limitations
 
-- Palm strokes still sometimes appear despite Pencil-only settings; the cause is unresolved.
+- Palm strokes sometimes appear in PDF Markup despite Pencil-only settings; the cause is unresolved.
 - Some Reader PDFs have no downloadable original and offer Open in Reader.
-- Text delivery is implemented; native ink/image highlights and exact placement in Reader's original PDF view are not established by its public API.
+- Reader receives text highlights and notes. Native ink/image upload and exact placement in Reader's PDF view require further API support or verification.
+- EPUB delivery to Reader needs a verified canonical Reader text source.
 
 ## Development
 
-Open `Paper.xcodeproj` in Xcode with iPadOS 18+ and Developer Mode enabled. Operational commands, tests, provisioning and storage rules are in [AGENTS.md](../AGENTS.md).
+Open `Paper.xcodeproj` in Xcode with iPadOS 18+ and Developer Mode enabled. Operational commands, tests, provisioning and storage rules are in [AGENTS.md](../AGENTS.md). See [SPEC.md](../SPEC.md), [PLAN.md](../PLAN.md) and [annotation research](annotation-sync-research.md) for scope and evidence.

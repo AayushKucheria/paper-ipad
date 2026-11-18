@@ -13,6 +13,11 @@ Start by inspecting the adopter's project, platform, storage and signing setup. 
 | `Paper/ReaderCredentials.swift` | Keychain credentials |
 | `Paper/AnthropicMarkupAPI.swift`, `Paper/ReviewModel.swift`, `Paper/ReviewView.swift` | Selected-page analysis and editable review |
 | `Paper/ReaderHighlightAPI.swift`, `Paper/ReviewItem.swift` | Reader text delivery and persisted draft state |
+| `Paper/DirectArticleReader.swift`, `Paper/DirectInkStore.swift` | Article/EPUB reader: WKWebView with a PencilKit canvas and native tool picker sharing one scroll offset; per-section `PKDrawing` storage with legacy-ink migration; review capture |
+| `Paper/DirectArticlePreparation.swift`, `Paper/ArticleRenderer.swift` | Reader article HTML preparation and PDF rendering for older article copies |
+| `Paper/EPUBArchive.swift`, `Paper/EPUBPublication.swift` | Unlocked EPUB import and chapter sections |
+| `Paper/MarkupsInboxView.swift` | Cross-document inbox of pending markup |
+| `Paper/BackupSnapshot.swift`, `Paper/BackupSettings.swift` | Versioned, checksum-verified backups to a user-chosen Files folder |
 | `project.yml` | XcodeGen project definition; regenerate after target changes |
 
 ## Configuration and integration
@@ -29,16 +34,17 @@ Read [AGENTS.md](AGENTS.md) before running tests. Discover an available iPad sim
 
 ## Package for SideStore
 
-Use your own signing team and bundle identifier in Xcode first. Build for a connected iPad with `xcodebuild build -project Paper.xcodeproj -scheme Paper -destination 'id=<your-device-udid>' -derivedDataPath build-device -allowProvisioningUpdates`. This needs Apple Account access and has not been tested for a fresh adopter account. The existing project already contains generated targets; XcodeGen is only needed after editing `project.yml`.
-
-From the repository root, package the resulting app:
+SideStore signs the app on the iPad, so the Mac build can be unsigned and needs no connected device or Apple Account. The existing project already contains generated targets; XcodeGen is only needed after editing `project.yml`. From the repository root:
 
 ```sh
-mkdir -p build-device/sideload/Payload
-ditto build-device/Build/Products/Debug-iphoneos/Paper.app build-device/sideload/Payload/Paper.app
-ditto -c -k --sequesterRsrc --keepParent build-device/sideload/Payload build-device/Paper.ipa
+xcodebuild build -project Paper.xcodeproj -scheme Paper -configuration Release \
+  -destination 'generic/platform=iOS' -derivedDataPath build-device CODE_SIGNING_ALLOWED=NO
+python3 scripts/package-ipa.py build-device/Paper.ipa \
+  --app build-device/Build/Products/Release-iphoneos/Paper.app
 ```
 
-Import `build-device/Paper.ipa` through SideStore. Keep signing identity and bundle ID stable when updating; see the README’s renewal section. The package commands were exercised against the retained owner build during recovery; new device builds require the adopter’s account and hardware. Device backups, signed IPAs and provisioning files stay outside version control.
+`scripts/package-ipa.py` writes exactly one `Payload/Paper.app` and refuses archives containing macOS metadata. Don't zip with `ditto --sequesterRsrc` or Finder: SideStore rejected such an archive by treating `Payload/._Paper.app` as the app. Set `PAPER_BUNDLE_ID` if you changed the identifier.
+
+Import `build-device/Paper.ipa` through SideStore. When updating an existing install, back up first, keep the bundle ID stable, enable Customize AppID and uncheck Append Team ID; see the README's renewal section. This path was verified on the owner's iPad on 18 November 2026 (in-place update, library preserved); a fresh adopter account has not been tested. Device backups, IPAs and provisioning files stay outside version control.
 
 If you fork with a different bundle ID, review the Keychain service defaults in `Paper/ReaderCredentials.swift` and the Anthropic store before choosing credential identity. Preserve these for an existing installation. Device scripts accept your bundle ID through `PAPER_BUNDLE_ID`; `.env` is not loaded for shell configuration.

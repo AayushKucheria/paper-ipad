@@ -1,6 +1,6 @@
 # Paper
 
-An iPad PDF library for reading and scribbling with Apple Pencil, connected to Readwise Reader. Keep the original PDF untouched, save native Markup in a working copy, and optionally turn selected marked pages into editable review notes with Claude.
+An iPad reading library for scribbling with Apple Pencil, connected to Readwise Reader. Write directly on Reader articles and EPUBs with Apple's native pen, highlighter, eraser and lasso, or mark up PDFs in Quick Look. Originals stay untouched, and you can turn selected marked pages into editable review notes with Claude, then send them to Reader as highlights.
 
 [Watch the 23-second demo](docs/demo.mp4) · Draw on a sample PDF with Markup, save, and return to Downloaded.
 
@@ -23,7 +23,7 @@ You need a Mac with Xcode, an iPad running iPadOS 18+, and your own Apple signin
 
 1. Open `Paper.xcodeproj` in Xcode. Choose your signing team for the app and test targets. For a separate installation, choose your own bundle identifier; preserve the existing identity when updating an existing Paper library.
 2. Choose an iPad simulator or your own connected iPad and run the Paper scheme. Hardware needs Developer Mode.
-3. Connect Reader in the app; enter the optional Anthropic key in AI settings. Keys stay in separate Keychain services. Check that library entries load, then download a PDF and reopen its saved Markup.
+3. Connect Reader in the app; enter the optional Anthropic key in AI settings. Keys stay in separate Keychain services. Check that library entries load, then open an article, write on it with the Pencil, and reopen it to see your ink.
 
 Verified from a clean clone on 18 November 2026: Xcode discovered all three targets and the Paper scheme; all 34 signed unit tests passed on the iPad Air 11-inch (M4), iOS 27.0 simulator. A new adopter’s physical installation and live Reader/Anthropic accounts still need verification.
 
@@ -48,10 +48,10 @@ Paper is distributed as source: build it with your own Apple signing account. A 
 | [AltStore Classic](https://faq.altstore.io/altstore-classic/altserver) | A reachable computer running AltServer |
 | [Sideloadly](https://sideloadly.io/) | A computer running its automatic refresh service |
 
-For SideStore, follow its [installation guide](https://docs.sidestore.io/docs/installation/install), including the first self-refresh, then import your built `.ipa` in My Apps → +. Packaging commands are in [INTEGRATE.md](INTEGRATE.md#package-for-sidestore). When updating an existing Paper installation, back up first, enable Customize AppID, retain its original bundle ID and signing team, and uncheck Append Team ID. Keep Paper installed to preserve its library.
+For SideStore, follow its [installation guide](https://docs.sidestore.io/docs/installation/install), including the first self-refresh, then import your built `.ipa` in My Apps → +. Build and package it with the commands in [INTEGRATE.md](INTEGRATE.md#package-for-sidestore); SideStore does the signing, so the Mac build needs no device. When updating an existing Paper installation, back up first, enable Customize AppID, retain its original bundle ID and signing team, and uncheck Append Team ID. Keep Paper installed to preserve its library.
 
 Check Paper’s days remaining in SideStore and refresh before expiry. SideStore attempts background refresh; it has not been verified for Paper, so manually refresh every few days until you confirm it works on your device. LocalDevVPN is needed during renewal; downloaded reading and handwriting work offline without it.
 
-The original installation’s SideStore migration and launch were verified on 18 November 2026, with all 35 saved files unchanged. Reader/Anthropic credential continuity still needs verification after migration. This verifies the retained installed build; newer local feature work is not included in this repository release.
+The original installation’s SideStore migration and launch were verified on 18 November 2026, with all 35 saved files unchanged. Reader/Anthropic credential continuity still needs verification after migration. The PencilKit reader build was later installed in place through SideStore with the library and existing ink preserved.
 
 [Paid Apple Developer membership](https://developer.apple.com/programs/) offers longer-lived signing for US$99/year or local equivalent. TestFlight requires that membership and [each build expires after 90 days](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/).
