@@ -11,7 +11,7 @@ This wrap published the long-running local feature work (direct reader, EPUB, ba
 ## 19 November fixes (staged, awaiting install)
 
 - Article analysis "incomplete": Paper sent region ids like 100001 and the model answered pages [1], failing validation. Now sends 1..n and maps back; failure reasons are logged (OSLog `analysis-api`/`analysis-decode`). Confirmed with two real API calls.
-- EPUB: finger overscroll (80 pt) past a section edge opens the next/previous section; Pencil never navigates; last section remembered.
+- EPUB: Previous/Next section buttons under the nav bar at section edges (the overscroll version failed on device: hint hidden behind the palette). Verified on the simulator with the user's real R.U.R. copy, title page through Uncopyright.
 - Reader EPUBs never loaded: some records have `source_url: ""`, which failed the whole page decode. URLs now decode leniently, bad records are skipped and logged, books/articles refresh at launch when stale.
 - Reader and Anthropic credentials verified after the SideStore migration.
 - Simulator: 72 unit tests (2 opt-in skipped) and all ReaderLibraryFlowTests/ReadingFlowTests passed. UI tests need `python3 scripts/reader-test-server.py` running on 18767; stop stale copies first, they serve old fixtures.
