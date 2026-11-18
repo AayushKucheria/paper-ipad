@@ -131,7 +131,7 @@ extension DocumentStore {
             let publication = try JSONDecoder().decode(EPUBPublication.self, from: Data(contentsOf: folder.appendingPathComponent("publication.json")))
             let resources = folder.appendingPathComponent("publication", isDirectory: true)
             return publication.chapters.map { chapter in
-                DirectReadingSection(id: chapter.path, title: chapter.title, fileURL: resources.appendingPathComponent(chapter.path),
+                DirectReadingSection(id: chapter.path, title: EPUBPublication.displayTitle(chapter.title), fileURL: resources.appendingPathComponent(chapter.path),
                                      readAccessURL: resources, baseURL: nil)
             }
         }

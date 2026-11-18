@@ -174,9 +174,9 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
     var onBoundary: ((SectionNavigator.Edge) -> Void)?
     var previousTitle: String?
     var nextTitle: String?
-    private static let boundaryThreshold: CGFloat = 80
-    private let previousHint = DirectInkController.makeHint()
-    private let nextHint = DirectInkController.makeHint()
+    private static let edgeMargin: CGFloat = 24
+    private lazy var previousHint = makeSectionButton(.previous)
+    private lazy var nextHint = makeSectionButton(.next)
 
     override var undoManager: UndoManager? { inkUndo }
 
@@ -211,7 +211,6 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         canvas.isOpaque = false
         canvas.contentInsetAdjustmentBehavior = .never
         canvas.bounces = true
-        canvas.alwaysBounceVertical = true
         canvas.showsHorizontalScrollIndicator = false
         canvas.drawingPolicy = .pencilOnly
         canvas.delegate = self
@@ -222,7 +221,7 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
             canvas.drawingPolicy = .anyInput
         }
         #endif
-        for (hint, id) in [(previousHint, "direct-previous-hint"), (nextHint, "direct-next-hint")] {
+        for (hint, id) in [(previousHint, "direct-previous-section"), (nextHint, "direct-next-section")] {
             hint.accessibilityIdentifier = id
             view.addSubview(hint)
         }
@@ -243,8 +242,7 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         web.frame = surface.bounds
         canvas.frame = surface.bounds
         updateScrollGeometry()
-        previousHint.center = CGPoint(x: view.bounds.midX, y: view.safeAreaInsets.top + 28)
-        nextHint.center = CGPoint(x: view.bounds.midX, y: view.bounds.maxY - view.safeAreaInsets.bottom - 28)
+        updateBoundaryHints()
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -359,6 +357,7 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
             showTools()
         }
         syncArticleOffset()
+        updateBoundaryHints()
     }
 
     private func syncArticleOffset() {
@@ -393,52 +392,59 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         }
     }
 
-    func scrollViewDidEndDragging(_ scrollView: UIScrollView, willDecelerate decelerate: Bool) {
-        // Only finger drags scroll the canvas (drawing policy is Pencil-only), so Pencil strokes never navigate.
-        guard ready, restorePosition == nil else { return }
-        let edge = SectionNavigator.boundary(offset: canvas.contentOffset.y, contentHeight: canvas.contentSize.height,
-                                             viewport: canvas.bounds.height, threshold: Self.boundaryThreshold)
-        if let edge, (edge == .next ? nextTitle : previousTitle) != nil {
-            previousHint.alpha = 0
-            nextHint.alpha = 0
-            onBoundary?(edge)
-        }
+    private func makeSectionButton(_ edge: SectionNavigator.Edge) -> UIButton {
+        var config = UIButton.Configuration.filled()
+        config.cornerStyle = .capsule
+        config.baseBackgroundColor = UIColor(white: 0.93, alpha: 0.97)
+        config.baseForegroundColor = UIColor(white: 0.2, alpha: 1)
+        config.contentInsets = NSDirectionalEdgeInsets(top: 9, leading: 18, bottom: 9, trailing: 18)
+        let button = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in
+            guard let self, self.ready, self.restorePosition == nil else { return }
+            self.previousHint.alpha = 0
+            self.nextHint.alpha = 0
+            self.onBoundary?(edge)
+        })
+        button.alpha = 0
+        return button
     }
 
-    private static func makeHint() -> UILabel {
-        let label = PaddedLabel()
-        label.font = .systemFont(ofSize: 14, weight: .medium)
-        label.textColor = UIColor(white: 0.25, alpha: 1)
-        label.backgroundColor = UIColor(white: 0.95, alpha: 0.96)
-        label.layer.cornerRadius = 15
-        label.clipsToBounds = true
-        label.alpha = 0
-        return label
-    }
-
+    /// "↑ Previous" at the start of a section and "Next ↓" at its end, kept clear of the Pencil tool palette.
     private func updateBoundaryHints() {
-        guard ready, restorePosition == nil, canvas.bounds.height > 0 else {
+        guard isViewLoaded, ready, restorePosition == nil, canvas.bounds.height > 0 else {
             previousHint.alpha = 0
             nextHint.alpha = 0
             return
         }
-        let maxOffset = max(0, canvas.contentSize.height - canvas.bounds.height)
-        let offset = canvas.contentOffset.y
-        configure(nextHint, title: nextTitle, text: { "Next: \($0) \u{2193}" }, pull: offset - maxOffset)
-        configure(previousHint, title: previousTitle, text: { "\u{2191} Previous: \($0)" }, pull: -offset)
+        let visible = SectionNavigator.edgeButtons(offset: canvas.contentOffset.y, contentHeight: canvas.contentSize.height,
+                                                   viewport: canvas.bounds.height, margin: Self.edgeMargin)
+        // iPadOS doesn't report the floating tool palette's frame (frameObscured is null), so keep the buttons in a row
+        // under the navigation bar, where the palette doesn't sit by default.
+        let row = view.safeAreaInsets.top + 30
+        place(previousHint, title: visible.contains(.previous) ? previousTitle.map { "\u{2191} Previous: \($0)" } : nil,
+              at: row, leading: true)
+        place(nextHint, title: visible.contains(.next) ? nextTitle.map { "Next: \($0) \u{2193}" } : nil,
+              at: row, leading: false)
     }
 
-    private func configure(_ hint: UILabel, title: String?, text: (String) -> String, pull: CGFloat) {
-        guard let title, pull > 8 else { hint.alpha = 0; return }
-        let release = pull >= Self.boundaryThreshold
-        hint.text = release ? "Release to open \(title)" : text(title)
-        hint.sizeToFit()
-        hint.frame.size.width += 28
-        hint.frame.size.height = 30
-        hint.center = hint === nextHint
-            ? CGPoint(x: view.bounds.midX, y: view.bounds.maxY - view.safeAreaInsets.bottom - 28)
-            : CGPoint(x: view.bounds.midX, y: view.safeAreaInsets.top + 28)
-        hint.alpha = min(1, pull / Self.boundaryThreshold)
+    private func place(_ button: UIButton, title: String?, at y: CGFloat, leading: Bool) {
+        guard let title else {
+            if button.alpha > 0 { UIView.animate(withDuration: 0.15) { button.alpha = 0 } }
+            return
+        }
+        if button.configuration?.title != title, var config = button.configuration {
+            config.title = title
+            config.titleLineBreakMode = .byTruncatingTail
+            button.configuration = config
+            button.layoutIfNeeded()
+            // One line, at most a third of the width, so the two pills never meet or wrap.
+            let limit = view.bounds.width / 3
+            let size = button.systemLayoutSizeFitting(CGSize(width: UIView.layoutFittingCompressedSize.width, height: 44))
+            button.bounds.size = CGSize(width: min(size.width, limit), height: size.height)
+        }
+        let inset: CGFloat = 20
+        button.center = CGPoint(x: leading ? inset + button.bounds.width / 2 : view.bounds.width - inset - button.bounds.width / 2, y: y)
+        view.bringSubviewToFront(button)
+        if button.alpha < 1 { UIView.animate(withDuration: 0.15) { button.alpha = 1 } }
     }
 
     func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
@@ -534,8 +540,4 @@ final class DirectInkController: UIViewController, WKNavigationDelegate, PKCanva
         `;
         document.head.append(style);
         """
-}
-
-private final class PaddedLabel: UILabel {
-    override func drawText(in rect: CGRect) { super.drawText(in: rect.insetBy(dx: 14, dy: 0)) }
 }

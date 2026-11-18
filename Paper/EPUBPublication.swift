@@ -9,6 +9,12 @@ struct DirectReadingSection: Identifiable, Equatable {
 }
 
 struct EPUBPublication: Codable {
+    /// Headings often carry markup whitespace ("Act\n\t\t\tI"); show them as one readable line.
+    static func displayTitle(_ raw: String) -> String {
+        let words = raw.split(whereSeparator: { $0.isWhitespace })
+        return words.isEmpty ? raw : words.joined(separator: " ")
+    }
+
     struct Chapter: Codable {
         let path: String
         let title: String

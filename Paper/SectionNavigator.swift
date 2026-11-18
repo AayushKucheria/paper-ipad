@@ -17,12 +17,13 @@ struct SectionNavigator: Equatable {
         min(max(0, saved), max(0, count - 1))
     }
 
-    /// Which edge, if any, a finger release at `offset` has pulled past by at least `threshold`.
-    static func boundary(offset: CGFloat, contentHeight: CGFloat, viewport: CGFloat, threshold: CGFloat) -> Edge? {
+    /// Which section-switch buttons to show: "previous" at the start of a section, "next" at its end.
+    static func edgeButtons(offset: CGFloat, contentHeight: CGFloat, viewport: CGFloat, margin: CGFloat) -> Set<Edge> {
         let maxOffset = max(0, contentHeight - viewport)
-        if offset - maxOffset >= threshold { return .next }
-        if -offset >= threshold { return .previous }
-        return nil
+        var edges: Set<Edge> = []
+        if offset <= margin { edges.insert(.previous) }
+        if offset >= maxOffset - margin { edges.insert(.next) }
+        return edges
     }
 
     func neighbour(_ edge: Edge) -> Int? {

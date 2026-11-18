@@ -2,27 +2,30 @@ import XCTest
 @testable import Paper
 
 final class SectionNavigatorTests: XCTestCase {
-    private let threshold: CGFloat = 80
+    private let margin: CGFloat = 24
 
-    func testPullingPastTheEndAdvancesToTheNextSection() {
-        let edge = SectionNavigator.boundary(offset: 1_000 + 90, contentHeight: 1_800, viewport: 800, threshold: threshold)
-        XCTAssertEqual(edge, .next)
+    func testNextButtonAppearsOnlyAtTheEndOfALongSection() {
+        XCTAssertEqual(SectionNavigator.edgeButtons(offset: 1_000, contentHeight: 1_800, viewport: 800, margin: margin), [.next])
+        XCTAssertEqual(SectionNavigator.edgeButtons(offset: 990, contentHeight: 1_800, viewport: 800, margin: margin), [.next])
     }
 
-    func testPullingPastTheTopGoesToThePreviousSection() {
-        XCTAssertEqual(SectionNavigator.boundary(offset: -90, contentHeight: 1_800, viewport: 800, threshold: threshold), .previous)
+    func testPreviousButtonAppearsOnlyAtTheStart() {
+        XCTAssertEqual(SectionNavigator.edgeButtons(offset: 0, contentHeight: 1_800, viewport: 800, margin: margin), [.previous])
     }
 
-    func testSmallOverscrollAndMidSectionOffsetsDoNothing() {
-        XCTAssertNil(SectionNavigator.boundary(offset: 1_000 + 30, contentHeight: 1_800, viewport: 800, threshold: threshold))
-        XCTAssertNil(SectionNavigator.boundary(offset: -30, contentHeight: 1_800, viewport: 800, threshold: threshold))
-        XCTAssertNil(SectionNavigator.boundary(offset: 500, contentHeight: 1_800, viewport: 800, threshold: threshold))
+    func testMidSectionShowsNoButtons() {
+        XCTAssertEqual(SectionNavigator.edgeButtons(offset: 500, contentHeight: 1_800, viewport: 800, margin: margin), [])
     }
 
-    func testShortSectionThatFitsTheScreenStillAdvances() {
-        // Content shorter than the viewport: the scrollable range is zero, so any pull past 0 is overscroll at the end.
-        XCTAssertEqual(SectionNavigator.boundary(offset: 90, contentHeight: 300, viewport: 800, threshold: threshold), .next)
-        XCTAssertEqual(SectionNavigator.boundary(offset: -90, contentHeight: 300, viewport: 800, threshold: threshold), .previous)
+    func testShortSectionShowsBothButtonsWithoutScrolling() {
+        // A title page shorter than the screen can't scroll, so both ways out must be visible immediately.
+        XCTAssertEqual(SectionNavigator.edgeButtons(offset: 0, contentHeight: 300, viewport: 800, margin: margin), [.previous, .next])
+    }
+
+    func testSectionTitlesCollapseMarkupWhitespace() {
+        XCTAssertEqual(EPUBPublication.displayTitle("Act\n\t\t\t\tI"), "Act I")
+        XCTAssertEqual(EPUBPublication.displayTitle("  Dramatis   Personae "), "Dramatis Personae")
+        XCTAssertEqual(EPUBPublication.displayTitle("Imprint"), "Imprint")
     }
 
     func testStepsClampAtTheBookEnds() {
