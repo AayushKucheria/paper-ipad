@@ -8,9 +8,18 @@ Pre-update backup: `~/Documents/Paper Backups/*-before-pencilkit` (with `library
 
 This wrap published the long-running local feature work (direct reader, EPUB, backups, Markups inbox, shelves, PencilKit) onto the public-release commits without undoing their privacy cleanup. Owner device/team values now live in the ignored `.env.device`; device scripts read `PAPER_DEVICE_UDID`/`PAPER_TEAM_ID`. `scripts/package-ipa.py` replaces the `ditto` packaging that produced SideStore's `._Paper.app` rejection.
 
+## 19 November fixes (staged, awaiting install)
+
+- Article analysis "incomplete": Paper sent region ids like 100001 and the model answered pages [1], failing validation. Now sends 1..n and maps back; failure reasons are logged (OSLog `analysis-api`/`analysis-decode`). Confirmed with two real API calls.
+- EPUB: finger overscroll (80 pt) past a section edge opens the next/previous section; Pencil never navigates; last section remembered.
+- Reader EPUBs never loaded: some records have `source_url: ""`, which failed the whole page decode. URLs now decode leniently, bad records are skipped and logged, books/articles refresh at launch when stale.
+- Reader and Anthropic credentials verified after the SideStore migration.
+- Simulator: 72 unit tests (2 opt-in skipped) and all ReaderLibraryFlowTests/ReadingFlowTests passed. UI tests need `python3 scripts/reader-test-server.py` running on 18767; stop stale copies first, they serve old fixtures.
+- `Paper-EPUB-Analysis-Fix.ipa` is staged in SideStore's Files (hash-verified). Pre-update backup: `~/Documents/Paper Backups/2026-11-19-000148-before-epub-analysis-fix`. After install: compare library hashes, re-check analysis/EPUB scroll/Books on device, remove `Paper-PencilKit.ipa` from SideStore Files.
+
 ## Known issues / loose ends
 
-- Physical hands-on checklist not individually recorded: draw across a sentence and a figure, scroll with the palette open, change color, highlight, erase, lasso, reopen (ink + position), review capture, EPUB chapter isolation.
+- Physical PencilKit checklist passed 18 Nov (draw, scroll with palette, color, highlight, erase, lasso, reopen); EPUB scrolling issue found and fixed above.
 - SideStore background renewal and Reader/Anthropic Keychain continuity after migration are still unverified; refresh manually every few days with Wi-Fi + LocalDevVPN.
 - Real Reader passage matching, PDF placement and downstream Readwise retrieval need one user-confirmed end-to-end send. EPUB delivery needs a verified canonical Reader text source.
 - In-app Files backup destination still needs choosing on the device.
@@ -20,4 +29,4 @@ This wrap published the long-running local feature work (direct reader, EPUB, ba
 
 ## Next logical step
 
-Run the physical PencilKit checklist on the iPad and record results in PLAN.md.
+Install the staged build, then verify analysis, EPUB section scrolling and Reader Books on the iPad; then record the README demo.

@@ -52,6 +52,6 @@ For SideStore, follow its [installation guide](https://docs.sidestore.io/docs/in
 
 Check Paper’s days remaining in SideStore and refresh before expiry. SideStore attempts background refresh; it has not been verified for Paper, so manually refresh every few days until you confirm it works on your device. LocalDevVPN is needed during renewal; downloaded reading and handwriting work offline without it.
 
-The original installation’s SideStore migration and launch were verified on 18 November 2026, with all 35 saved files unchanged. Reader/Anthropic credential continuity still needs verification after migration. The PencilKit reader build was later installed in place through SideStore with the library and existing ink preserved.
+The original installation’s SideStore migration and launch were verified on 18 November 2026, with all 35 saved files unchanged. Reader and Anthropic credentials carried over. The PencilKit reader build was later installed in place through SideStore with the library and existing ink preserved.
 
 [Paid Apple Developer membership](https://developer.apple.com/programs/) offers longer-lived signing for US$99/year or local equivalent. TestFlight requires that membership and [each build expires after 90 days](https://developer.apple.com/help/app-store-connect/test-a-beta-version/testflight-overview/).
