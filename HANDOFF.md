@@ -28,3 +28,8 @@ Verify Paper’s next SideStore refresh and preserved Reader/Anthropic access; c
 Prepared in an isolated full clone, preserving owner working changes. README includes source installation and SideStore renewal; scripts accept PAPER_BUNDLE_ID. Replaced embedded document thumbnail/library metadata in white-library prototype with synthetic examples. Thirty-four signed simulator unit tests passed; missing script configuration fails before device access. No new adopter device/live-account test or shareable product demo was produced.
 
 User authorized history cleanup and public visibility. Historical device identifiers, owner paths and embedded preview/library metadata were removed; all 111 remaining historical blobs passed the targeted privacy check, and Gitleaks 8.30.1 reported zero secret findings. A verified original-history bundle and full private release report are retained outside this repository. History has new commit IDs: existing clones must synchronize with cleaned main rather than merge old history back. Keep owner working files and local configuration backed up during synchronization.
+
+
+## README screenshots — 18 November
+
+Public README now includes two real simulator screenshots with synthetic data: Reader library and native PDF Markup. Provenance is in docs/images/README.md. A temporary capture UI flow passed. Post-history-cleanup validation caught three invalid unquoted team placeholders in the Xcode project; corrected to empty quoted strings in ee9315e. Project lint/discovery, fresh simulator build, screenshot UI capture and all 34 signed unit tests now pass after that fix. No personal iPad data or unpublished local feature work was used. No demo video was recorded.

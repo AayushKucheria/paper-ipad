@@ -2,6 +2,19 @@
 
 An iPad PDF library for reading and scribbling with Apple Pencil, connected to Readwise Reader. Keep the original PDF untouched, save native Markup in a working copy, and optionally turn selected marked pages into editable review notes with Claude.
 
+<table>
+  <tr>
+    <td><img src="docs/images/library.png" alt="Paper’s Reader library with synthetic sample PDFs, search, and download controls" width="400"></td>
+    <td><img src="docs/images/markup.png" alt="A sample PDF open in Apple’s native Markup tools, with ink on the page" width="400"></td>
+  </tr>
+  <tr>
+    <td>Browse your Reader PDFs and download them for offline reading.</td>
+    <td>Write directly on the PDF using native Markup.</td>
+  </tr>
+</table>
+
+Captured from the iPad simulator using synthetic sample documents.
+
 ## Try it
 
 You need a Mac with Xcode, an iPad running iPadOS 18+, and your own Apple signing team. Readwise Reader synchronization needs your Reader account/token; Claude analysis optionally needs your own Anthropic API key and incurs usage charges.
