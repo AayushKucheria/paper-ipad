@@ -116,7 +116,7 @@ Stealable: yes. The repository is public; `wrap` keeps README.md (people) and IN
 | --- | --- | --- |
 | Docs | Current through PencilKit reader | INTEGRATE code map and packaging updated 18 Nov |
 | Current-file privacy | Owner UDID/team moved to ignored `.env.device`; gitleaks run on the commit set | 18 Nov wrap |
-| History privacy | Public history rewritten and rescanned; old repo kept as private archive. Unredacted commits also exist on the local, unpushed `wrap-sidestore-recovery` branch | Do not push that branch; pre-push guard installed |
+| History privacy | Public history rewritten and rescanned; old repo kept as private archive; the pre-public history lives only in `~/Documents/Paper Backups/public-adoption-review-2026-11-18/pre-public-history.bundle` | Local pre-push guard blocks it and owner identifiers |
 | Setup verification | Simulator unit/UI tests; owner device via SideStore. Fresh adopter account untested | 18 Nov |
 | License | MIT | `LICENSE` |
 | Demo | 23-second PDF Markup demo + screenshots, synthetic documents | `docs/demo.mp4`, `docs/images/README.md`; doesn't show the PencilKit reader yet |

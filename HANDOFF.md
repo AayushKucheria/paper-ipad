@@ -15,7 +15,6 @@ This wrap published the long-running local feature work (direct reader, EPUB, ba
 - Real Reader passage matching, PDF placement and downstream Readwise retrieval need one user-confirmed end-to-end send. EPUB delivery needs a verified canonical Reader text source.
 - In-app Files backup destination still needs choosing on the device.
 - Palm strokes in PDF Markup, 17 PDFs without download sources, and broader accessibility/performance coverage remain open.
-- Local branch `wrap-sidestore-recovery` contains unredacted device/team IDs in its history. Never push it; delete it when no longer needed.
 - README demo (docs/demo.mp4, demo.gif) and screenshots show only the PDF Markup flow on synthetic documents; they predate the PencilKit reader. A demo of direct article writing would match the current app better.
 - Published history was rewritten for privacy; the previous repository stays a private archive. Never merge archived history back. The owner checkout has a local pre-push guard against reintroducing historical private data.
 
