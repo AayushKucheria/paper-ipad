@@ -48,6 +48,40 @@ final class ReaderAPITests: XCTestCase {
         do { _ = try await api().articleContent(id: "wanted"); XCTFail("Only the original parent article may supply content") }
         catch { XCTAssertTrue(error is ReaderAPIError) }
     }
+    func testEpubListUsesDocumentedParametersAndDecodesRealUploadShapes() async throws {
+        ReaderURLProtocol.handle = { request in
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertEqual(Set(query.map(\.name)), ["category", "limit", "withRawSourceUrl"])
+            XCTAssertTrue(query.contains(URLQueryItem(name: "category", value: "epub")))
+            XCTAssertTrue(query.contains(URLQueryItem(name: "withRawSourceUrl", value: "true")))
+            // Shapes observed for uploaded EPUBs: empty source_url/author/image_url, private:// source_url, null title.
+            return (200, [:], Data(#"{"count":3,"nextPageCursor":null,"results":[{"id":"broken","category":"epub","title":null,"author":"","source_url":"","image_url":"","url":"https://read.readwise.io/read/broken","summary":"Your file was uploaded but we were unable to load and read it.","reading_progress":0,"raw_source_url":""},{"id":"good","category":"epub","title":"A book","author":"An author","source_url":"private://read/good","image_url":"https://img.example/c.jpg","url":"https://read.readwise.io/read/good","reading_progress":0.02,"raw_source_url":"https://files.example/good.epub"},{"id":"nulls","category":"epub","title":null,"source_url":null,"url":"","raw_source_url":null}]}"#.utf8))
+        }
+        let books = try await api().listBooks { _ in }
+        XCTAssertEqual(books.map(\.id), ["broken", "good", "nulls"], "One odd record must not hide the whole EPUB catalog")
+        XCTAssertEqual(books.map(\.hasDownload), [false, true, false])
+        XCTAssertEqual(books[1].title, "A book")
+    }
+    func testOneUndecodableRecordDoesNotDropTheRestOfAPage() async throws {
+        ReaderURLProtocol.handle = { _ in
+            (200, [:], Data(#"{"results":[{"id":"a","category":"epub"},{"id":42,"category":"epub"},{"category":"epub"},{"id":"b","category":"epub"}],"nextPageCursor":null}"#.utf8))
+        }
+        let books = try await api().listBooks { _ in }
+        XCTAssertEqual(books.map(\.id), ["a", "b"])
+    }
+    func testBookDownloadResolvesFreshEpubSourceWithoutToken() async throws {
+        var sawToken = false
+        ReaderURLProtocol.handle = { request in
+            if request.url!.host == "files.example" { sawToken = request.value(forHTTPHeaderField: "Authorization") != nil; return (200, [:], Data("epub".utf8)) }
+            let query = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)!.queryItems!
+            XCTAssertTrue(query.contains(URLQueryItem(name: "id", value: "book")))
+            XCTAssertTrue(query.contains(URLQueryItem(name: "withRawSourceUrl", value: "true")))
+            return (200, [:], Data(#"{"results":[{"id":"book","category":"epub","source_url":"","raw_source_url":"https://files.example/book.epub"}]}"#.utf8))
+        }
+        let file = try await api().downloadBook(id: "book") { _, _ in }
+        defer { try? FileManager.default.removeItem(at: file) }
+        XCTAssertFalse(sawToken)
+    }
     func testMalformedOptionalCoverDoesNotAbortValidPDFCatalog() async throws {
         ReaderURLProtocol.handle = { _ in
             (200, [:], Data(#"{"results":[{"id":"bad-cover","category":"pdf","title":"Keep this document","image_url":"http://["},{"id":"valid-cover","category":"pdf","image_url":"https://images.example/cover.jpg"}],"nextPageCursor":null}"#.utf8))
